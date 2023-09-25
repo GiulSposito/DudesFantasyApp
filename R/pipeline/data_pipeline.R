@@ -11,9 +11,23 @@ config <- yaml::read_yaml("./config/config.yml")
 .scoreRules <- yaml::read_yaml("./config/score_settings.yml")
 .tag <- "preTNF"
 
+# PROJECTION SCRAPING ####
+source("./R/api/ffa_projection.R")
+.ffa_scrape_db <- scrapeWebData(.tag, .week, .season)
 
+# temp
+saveRDS(.ffa_scrape_db, "./data/ffa_scrap_db_temp.rds")
+.ffa_scrape_db <- readRDS("./data/ffa_scrap_db_temp.rds")
 
+# FFA CALCULATIONS
+ffa_db <- calcProjections(.ffa_scrape_db, .scoreRules)
+dm_draw(ffa_db, view_type = "all", column_types = F)
 
+ffa_db$ffa_scrape |> 
+  filter(season==2023, week==3) |> 
+  filter(timestamp == max(timestamp)) |> 
+  select(-scrapeData) |> 
+  inner_join(ffa_db$ffa_projtable)
 
 # FFA SECTION ####
 
@@ -42,7 +56,7 @@ ffa_projtable <- ffa_raw_projection_table |>
   distinct()
 
 # FFA SITE POINTS ####
-source("./R/simulation/data_src_proj_table.R")
+source("./R_old/simulation/data_src_proj_table.R")
 ffa_raw_source_points <- projections_table_data_sources(webScrape, yaml::read_yaml("./config/score_settings.yml")) 
 
 ffa_proj_source_points <- ffa_raw_source_points |>
