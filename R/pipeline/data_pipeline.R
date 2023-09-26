@@ -2,17 +2,61 @@ library(tidyverse)
 library(dm)
 library(glue)
 library(ffanalytics)
+source("./R/api/ffa_projection.R")
 
 # MASTER PARAMETERS ####
 config <- yaml::read_yaml("./config/config.yml")
 .season <- 2023
-.week <- 3
+.week <- 4
 .leagueId <- config$leagueId
 .scoreRules <- yaml::read_yaml("./config/score_settings.yml")
-.tag <- "preTNF"
+.tag <- "preWaivers"
+
+
+ffa_scrape_db <- scrapeWebData(.tag, .week, .season)
+
+temp_scape_filename <-
+  glue(
+    "./data/temp/ffa_scrape_db_s{.season}w{.weeknumber}_{.tag}.rds",
+    .weeknumber = formatC(.week, width = 2, flag = "0")
+  )
+
+saveRDS(ffa_scrape_db, temp_scape_filename)
+
+
+.tag <- "final"
+dbs <- 1:3 |> 
+  map_chr(\(w) glue(
+    "./data/temp/ffa_scrape_db_s{.season}w{.weeknumber}_{.tag}.rds",
+    .weeknumber = formatC(w, width = 2, flag = "0")
+  )) |> 
+  map(readRDS)
+  
+
+dbresult <- dbs |> 
+  reduce(dm_rows_append)
+      
+dbresult$ffa_scrape
+    
+ffa_scrape_db_w1 <- readRDS("./data/temp/ffa_scrape_db_s2023w01_final.rds")
+
+
+dbresult |> 
+  dm_draw(view_type = "all", column_types = T)
+
+
+
+
+?purrr
+
+ffa_db <- calcProjections(ffa_scrape_db, .scoreRules)
+
+
+
+
+
 
 # PROJECTION SCRAPING ####
-source("./R/api/ffa_projection.R")
 .ffa_scrape_db <- scrapeWebData(.tag, .week, .season)
 
 # temp

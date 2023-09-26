@@ -1,6 +1,5 @@
 library(tidyverse)
 library(dm)
-library(glue)
 library(ffanalytics)
 library(lubridate)
 
@@ -46,8 +45,7 @@ library(lubridate)
       attr(resp, "season") <- attr(.scrp, "season")
       attr(resp, "week") <-  attr(.scrp, "season")
       
-      resp |> 
-        return() 
+      resp
       
     }, .scrp = .webscrape)
   
@@ -63,8 +61,7 @@ library(lubridate)
                              avg_type="average") ) |>  
     unnest(proj_table) |> 
     select(data_src, id, pos, points)  |> 
-    distint() |> 
-    return()
+    distint()
 }
 
 
