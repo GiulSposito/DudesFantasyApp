@@ -61,7 +61,7 @@ library(lubridate)
                              avg_type="average") ) |>  
     unnest(proj_table) |> 
     select(data_src, id, pos, points)  |> 
-    distint()
+    distinct()
 }
 
 
@@ -79,13 +79,19 @@ scrapeWebData <- function(.tag, .week, .season) {
   )  
   
   scrape_db <- dm(ffa_scrape) |> 
-    dm_add_pk(ffa_scrape, c(timestamp, tag, week, season), check=T) 
+    dm_add_pk(ffa_scrape, c(season, week, tag, timestamp), check=T) 
   
   return(scrape_db)
 }
 
 # rum all FFA calculations and build a DB version
-calcProjections <- function(.ffa_scrape_db, .scoreRules){
+calcProjections <- function(.ffa_data, .scoreRules){
+  
+  if("dm" %in% class(.ffa_data)){
+    ffa_scrape= .ffa_data$ffa_scrape[1,]
+  } else {
+    ffa_scrape= .ffa_data
+  }
   
   # FFA PLAYER IDS ####
   load("../ffanalytics/R/sysdata.rda")
@@ -93,15 +99,15 @@ calcProjections <- function(.ffa_scrape_db, .scoreRules){
   
   # FFA PROJECT TABLE ####
   ffa_raw_projection_table <- 
-    projections_table(.ffa_scrape_db$ffa_scrape[1,]$scrapeData[[1]], .scoreRules) |> 
+    projections_table(ffa_scrape$scrapeData[[1]], .scoreRules) |> 
     add_ecr() |> 
     add_uncertainty() |> 
     add_player_info() |> 
     mutate(
-      timestamp = .ffa_scrape_db$ffa_scrape[1,]$timestamp,
-      tag = .ffa_scrape_db$ffa_scrape[1,]$tag,
-      week = .ffa_scrape_db$ffa_scrape[1,]$week,
-      season = .ffa_scrape_db$ffa_scrape[1,]$season
+      timestamp = ffa_scrape$timestamp,
+      tag = ffa_scrape$tag,
+      week = ffa_scrape$week,
+      season = ffa_scrape$season
     ) 
   
   ffa_projtable <- ffa_raw_projection_table |> 
@@ -116,14 +122,14 @@ calcProjections <- function(.ffa_scrape_db, .scoreRules){
   
   # FFA SITE POINTS ####
   ffa_raw_source_points <-
-    .projections_table_data_sources(.ffa_scrape_db$ffa_scrape[1, ]$scrapeData[[1]], .scoreRules)
+    .projections_table_data_sources(ffa_scrape$scrapeData[[1]], .scoreRules)
   
   ffa_proj_source_points <- ffa_raw_source_points |> 
     mutate(
-      timestamp = .ffa_scrape_db$ffa_scrape[1,]$timestamp,
-      tag = .ffa_scrape_db$ffa_scrape[1,]$tag,
-      week = .ffa_scrape_db$ffa_scrape[1,]$week,
-      season = .ffa_scrape_db$ffa_scrape[1,]$season
+      timestamp = ffa_scrape$timestamp,
+      tag = ffa_scrape$tag,
+      week = ffa_scrape$week,
+      season = ffa_scrape$season
     ) |> 
     select(season, week, tag, timestamp, data_src, id, pos, everything()) |> 
     distinct()
@@ -133,17 +139,18 @@ calcProjections <- function(.ffa_scrape_db, .scoreRules){
        ffa_players,
        ffa_projtable,
        ffa_proj_source_points,
-       .ffa_scrape_db) |>
+       ffa_scrape) |>
     dm_add_pk(ffa_player_ids, id, check = T) |>
     dm_add_pk(ffa_players, c(id, pos), check = T) |>
     dm_add_pk(ffa_projtable,
               c(season, week, tag, timestamp, avg_type, id, pos),
               check = T) |>
-    dm_add_fk(ffa_players, id, ffa_player_ids) |>
-    dm_add_fk(ffa_projtable, c(id, pos), ffa_players) |>
     dm_add_pk(ffa_proj_source_points,
               c(season, week, tag, timestamp, data_src, id, pos),
               check = T) |>
+    dm_add_pk(ffa_scrape, c(season, week, tag, timestamp), check=T) |> 
+    dm_add_fk(ffa_players, id, ffa_player_ids) |>
+    dm_add_fk(ffa_projtable, c(id, pos), ffa_players) |>
     dm_add_fk(ffa_proj_source_points, c(id, pos), ffa_players) |> 
     dm_add_fk(ffa_projtable, c(season, week, tag, timestamp), ffa_scrape) |> 
     dm_add_fk(ffa_proj_source_points, c(season, week, tag, timestamp), ffa_scrape)
