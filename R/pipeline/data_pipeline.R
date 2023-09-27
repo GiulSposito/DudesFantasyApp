@@ -2,6 +2,7 @@ library(tidyverse)
 library(dm)
 library(glue)
 library(ffanalytics)
+library(progress)
 source("./R/api/ffa_projection.R")
 
 # MASTER PARAMETERS ####
@@ -10,8 +11,7 @@ config <- yaml::read_yaml("./config/config.yml")
 .week <- 4
 .leagueId <- config$leagueId
 .scoreRules <- yaml::read_yaml("./config/score_settings.yml")
-.tag <- "preWaivers"
-
+.tag <- "posWaivers"
 
 ffa_scrape_db <- scrapeWebData(.tag, .week, .season)
 
@@ -23,14 +23,73 @@ temp_scape_filename <-
 
 saveRDS(ffa_scrape_db, temp_scape_filename)
 
+ffa_db <- calcProjections(ffa_scrape_db, .scoreRules)
+
+ffa_db2 <- calcProjections(ffa_scrape_db$ffa_scrape, .scoreRules)
+
+ffa_db2 |>  
+  dm_draw(view_type = "all", column_types = T)
+
+
+ffa_db <- fs::dir_ls("./data/temp/", regexp = "ffa_scrape_db.+rds") |> 
+  map(readRDS, .progress = T) |> 
+  map(calcProjections, .scoreRules=.scoreRules, .progress = T)
+
+
+ffa_final <- ffa_db |>
+  reduce(dm_rows_upsert)
+
+ffa_final |> 
+  dm_draw(view_type = "all", column_types = T)
+
+ffa_final$ffa_players
+
+ffa_final$ffa_proj_source_points |>
+  count(season, week, tag, timestamp, pos) |> 
+  pivot_wider(names_from = pos, values_from = n) |> 
+  arrange(timestamp)
+
+?dm_rows_upsert
+
+
+ffa_scrape_db <- fs::dir_ls("./data/temp/", regexp = "ffa_scrape_db.+rds") |> 
+  map(readRDS) |> 
+  reduce(dm_rows_append)
+
+
+
+
+
+
+ffa_scrape_db$ffa_scrape
+
+ffa_scrape_db |> 
+  class()
+
+ffa_scrape_db$ffa_scrape[1,]$scrapeData[[1]] |> 
+  attributes()
+
+
+projs <- ffa_scrape_db$ffa_scrape |> 
+  (\(x) split(x,1:nrow(x)))() |> 
+  map(\(x, sr){
+    calcProjectionsScrapeData(.x)
+  }, sr=.scoreRules)
+
+    calcProjections, .scoreRules=.scoreRules,.progress=T)
+
+   
+  
+ffa_scrape_db$ffa_scrape[1,] |> 
+  calcProjectionsScrapeDF(.scoreRules = .scoreRules)
+
 
 .tag <- "final"
 dbs <- 1:3 |> 
   map_chr(\(w) glue(
     "./data/temp/ffa_scrape_db_s{.season}w{.weeknumber}_{.tag}.rds",
     .weeknumber = formatC(w, width = 2, flag = "0")
-  )) |> 
-  map(readRDS)
+  )) 
   
 
 dbresult <- dbs |> 
