@@ -1,0 +1,186 @@
+library(tidyverse)
+library(dm)
+library(glue)
+library(ffanalytics)
+library(progress)
+source("./R/api/ffa_projection.R")
+
+# MASTER PARAMETERS ####
+config <- yaml::read_yaml("./config/config.yml")
+.season <- 2023
+.week <- 4
+.leagueId <- config$leagueId
+.scoreRules <- yaml::read_yaml("./config/score_settings.yml")
+.tag <- "posWaivers"
+
+ffa_scrape_db <- scrapeWebData(.tag, .week, .season)
+
+temp_scape_filename <-
+  glue(
+    "./data/temp/ffa_scrape_db_s{.season}w{.weeknumber}_{.tag}.rds",
+    .weeknumber = formatC(.week, width = 2, flag = "0")
+  )
+
+saveRDS(ffa_scrape_db, temp_scape_filename)
+
+ffa_db <- calcProjections(ffa_scrape_db, .scoreRules)
+
+ffa_db2 <- calcProjections(ffa_scrape_db$ffa_scrape, .scoreRules)
+
+ffa_db2 |>  
+  dm_draw(view_type = "all", column_types = T)
+
+
+ffa_db <- fs::dir_ls("./data/temp/", regexp = "ffa_scrape_db.+rds") |> 
+  map(readRDS, .progress = T) |> 
+  map(calcProjections, .scoreRules=.scoreRules, .progress = T)
+
+
+ffa_final <- ffa_db |>
+  reduce(dm_rows_upsert)
+
+ffa_final |> 
+  dm_draw(view_type = "all", column_types = T)
+
+ffa_final$ffa_players
+
+ffa_final$ffa_proj_source_points |>
+  count(season, week, tag, timestamp, pos) |> 
+  pivot_wider(names_from = pos, values_from = n) |> 
+  arrange(timestamp)
+
+?dm_rows_upsert
+
+
+ffa_scrape_db <- fs::dir_ls("./data/temp/", regexp = "ffa_scrape_db.+rds") |> 
+  map(readRDS) |> 
+  reduce(dm_rows_append)
+
+
+
+
+
+
+ffa_scrape_db$ffa_scrape
+
+ffa_scrape_db |> 
+  class()
+
+ffa_scrape_db$ffa_scrape[1,]$scrapeData[[1]] |> 
+  attributes()
+
+
+projs <- ffa_scrape_db$ffa_scrape |> 
+  (\(x) split(x,1:nrow(x)))() |> 
+  map(\(x, sr){
+    calcProjectionsScrapeData(.x)
+  }, sr=.scoreRules)
+
+    calcProjections, .scoreRules=.scoreRules,.progress=T)
+
+   
+  
+ffa_scrape_db$ffa_scrape[1,] |> 
+  calcProjectionsScrapeDF(.scoreRules = .scoreRules)
+
+
+.tag <- "final"
+dbs <- 1:3 |> 
+  map_chr(\(w) glue(
+    "./data/temp/ffa_scrape_db_s{.season}w{.weeknumber}_{.tag}.rds",
+    .weeknumber = formatC(w, width = 2, flag = "0")
+  )) 
+  
+
+dbresult <- dbs |> 
+  reduce(dm_rows_append)
+      
+dbresult$ffa_scrape
+    
+ffa_scrape_db_w1 <- readRDS("./data/temp/ffa_scrape_db_s2023w01_final.rds")
+
+
+dbresult |> 
+  dm_draw(view_type = "all", column_types = T)
+
+
+
+
+?purrr
+
+ffa_db <- calcProjections(ffa_scrape_db, .scoreRules)
+
+
+
+
+
+
+# PROJECTION SCRAPING ####
+.ffa_scrape_db <- scrapeWebData(.tag, .week, .season)
+
+# temp
+saveRDS(.ffa_scrape_db, "./data/ffa_scrap_db_temp.rds")
+.ffa_scrape_db <- readRDS("./data/ffa_scrap_db_temp.rds")
+
+# FFA CALCULATIONS
+ffa_db <- calcProjections(.ffa_scrape_db, .scoreRules)
+dm_draw(ffa_db, view_type = "all", column_types = F)
+
+ffa_db$ffa_scrape |> 
+  filter(season==2023, week==3) |> 
+  filter(timestamp == max(timestamp)) |> 
+  select(-scrapeData) |> 
+  inner_join(ffa_db$ffa_projtable)
+
+# FFA SECTION ####
+
+# FFA PLAYER IDS ####
+load("../ffanalytics/R/sysdata.rda")
+ffa_player_ids <- player_ids
+
+# FFA SCRAPPING SITES ####
+source("./R/import/ffa_player_projection.R")
+webScrape <- scrapPlayersPredictions(week, season)
+
+# FFA PROJECT TABLE ####
+ffa_raw_projection_table <- 
+  projections_table(webScrape, .scoreRules) |> 
+  add_ecr() |> 
+  add_uncertainty() |> 
+  add_player_info()
+
+ffa_projtable <- ffa_raw_projection_table |> 
+  select(avg_type:uncertainty) |> 
+  mutate(
+    season = .season,
+    week = .week
+  ) |> 
+  select(season, week, avg_type, id, everything()) |> 
+  distinct()
+
+# FFA SITE POINTS ####
+source("./R_old/simulation/data_src_proj_table.R")
+ffa_raw_source_points <- projections_table_data_sources(webScrape, yaml::read_yaml("./config/score_settings.yml")) 
+
+ffa_proj_source_points <- ffa_raw_source_points |>
+  mutate(season = .season, week = .week) |> 
+  select(season, week, data_src, id, pos, everything())
+
+# FFA PLAYERS ####
+ffa_players <- ffa_raw_projection_table |> 
+  select(id:pos, first_name:exp) |> 
+  distinct()
+
+ffa_db <- dm(ffa_player_ids, ffa_players, ffa_projtable, ffa_proj_source_points) |> 
+  dm_add_pk(ffa_player_ids, id, check = T) |> 
+  dm_add_pk(ffa_players, c(id, pos), check=T) |> 
+  dm_add_pk(ffa_projtable, c(season, week, avg_type, id, pos), check = T) |> 
+  dm_add_fk(ffa_players, id, ffa_player_ids) |> 
+  dm_add_fk(ffa_projtable, c(id, pos), ffa_players) |> 
+  dm_add_pk(ffa_proj_source_points, c(season, week, data_src, id, pos), check=T) |> 
+  dm_add_fk(ffa_proj_source_points, c(id, pos), ffa_players)
+
+dm_draw(ffa_db, view_type = "all", column_types = F)
+
+ffa_db |> 
+  saveRDS("./new_db/ffa_db_w03_s23.rds")
