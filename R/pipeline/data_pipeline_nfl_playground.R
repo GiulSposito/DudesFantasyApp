@@ -12,6 +12,8 @@ config <- yaml::read_yaml("./config/config.yml")
 .tag <- "posWaivers"
 
 
+# https://cran.r-project.org/web/packages/ffscrapr/ffscrapr.pdf
+
 # NFL ####
 
 # TEAMS ####

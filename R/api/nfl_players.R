@@ -1,10 +1,8 @@
 library(glue)
 library(tidyverse)
+library(dm)
 source("./R/api/nfl_api.R")
 
-# https://cran.r-project.org/web/packages/ffscrapr/ffscrapr.pdf
-
-# https://api.fantasy.nfl.com/v2/docs/service?serviceName=gameStats
 
 
 # return the league players
@@ -145,9 +143,10 @@ nfl_players_advanced <- function(.authToken, .leagueId, .season, .weeks, .player
 }
 
 # convert uma resposta em um dataframe
-nfl_extractPlayersStats <- function(playersStatsResp){
+nfl_extractPlayersStats <- function(playersStatsResp, statsDict){
   
-  players_stats_raw <-  playersStatsResp$content$games[[1]]$players |>
+  # limpa o json mantendo so o id do jogador e as info de statisticas
+  players_stats_nested <-  playersStatsResp$content$games[[1]]$players |>
     tibble(players = _) |>
     unnest_wider(players) |>
     select(
@@ -155,9 +154,8 @@ nfl_extractPlayersStats <- function(playersStatsResp){
       stats_raw = stats,
       advanced_raw = advanced,
       researchStats_raw = researchStats
-    ) 
-  
-  player_stats_framed <- players_stats_raw |> 
+    ) |> 
+    # converte as listas de estatisticas em DFs aninhados
     mutate(
       statsWeek = map(stats_raw, .enframeWeekStats),
       statsSeason = map(stats_raw, .enframeSeasonStats),
@@ -166,30 +164,49 @@ nfl_extractPlayersStats <- function(playersStatsResp){
       researchStatsSeason = map(researchStats_raw, .enframeSeasonStats)
     )
   
-  player_stats_framed |> 
-    .unnestStats(statsWeek)
+  # weekly stats
+  stats_data <- players_stats_nested |> 
+    .unnestStats(statsSeason) |> 
+    mutate(week=0L) |> 
+    bind_rows(.unnestStats(players_stats_nested, statsWeek))
   
-  player_stats_framed |> 
-    .unnestStats(statsSeason)
-
-  player_stats_framed |> 
-    .unnestStats(advStatsWeek) |> 
-    pivot_wider(id_cols=c(playerId, season, week),
-                names_from = statId,
-                values_from = value)
+  nfl_players_points <- stats_data  |> 
+    filter(statId=="pts") |> 
+    select(-statId) |> 
+    rename(pts=value) |> 
+    select(playerId, season, week, pts)
   
-  player_stats_framed |> 
-    .unnestStats(researchStatsWeek) |> 
-    pivot_wider(id_cols=c(playerId, season, week),
-                names_from = statId,
-                values_from = value)
-
-  player_stats_framed |> 
+  nfl_players_stats <- stats_data |> 
+    filter(statId!="pts") |> 
+    mutate(statId=as.integer(statId)) |> 
+    select(playerId,season, week, everything())
+  
+  nfl_players_adv_stats <- players_stats_nested |> 
     .unnestStats(researchStatsSeason) |> 
-    pivot_wider(id_cols=c(playerId, season),
+    mutate(week=0L) |> 
+    bind_rows(
+      .unnestStats(players_stats_nested, researchStatsWeek),
+      .unnestStats(players_stats_nested, advStatsWeek)
+    ) |> 
+    pivot_wider(id_cols=c(playerId, season, week),
                 names_from = statId,
                 values_from = value)
-
+  
+  nfl_stat_dictionary <- statsDict |> 
+    rename(statId=id)
+  
+  
+  nfl_stats_db <- dm(nfl_stat_dictionary,
+                     nfl_players_points,
+                     nfl_players_stats,
+                     nfl_players_adv_stats) |> 
+    dm_add_pk(nfl_stat_dictionary, statId) |> 
+    dm_add_pk(nfl_players_points, c(playerId, season, week)) |> 
+    dm_add_pk(nfl_players_stats, c(playerId, season, week, statId)) |> 
+    dm_add_pk(nfl_players_adv_stats, c(playerId, season, week)) |> 
+    dm_add_fk(nfl_players_stats, statId, nfl_stat_dictionary)
+  
+  return(nfl_stats_db)
 }
 
 # convert uma resposta em um dataframe
