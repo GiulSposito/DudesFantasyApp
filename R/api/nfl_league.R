@@ -108,28 +108,27 @@ nfl_extractRecap <- function(recapResp){
     teamId = recapResp$content$teams$id,
     name   = recapResp$content$teams$name,
     coachPoints = recapResp$content$teams$coach_points
-  ) %>% 
+  ) |> 
     pivot_wider(names_from="team", values_from=c(teamId, name, coachPoints), names_sep=".") %>% 
     mutate(
       title = recapResp$content$title,
       week  = recapResp$content$week_num,
       paragraphs  = list(tibble(recapResp$content$paragraphs)), 
       leagueHighligths = list(tibble(recapResp$content$league_notes))
-    ) %>% 
-    return()
+    ) 
 }
 
 # extrai o time e o roster
 nfl_extractTeams <- function(teamsResp){
   
   # extract teams
-  teamsResp$content$games[[1]]$leagues[[1]]$teams %>% 
+  teamsResp$content$games[[1]]$leagues[[1]]$teams |> 
     #transforma a lista de times em tibble
-    tibble(team=.) %>% 
-    unnest_wider(team) %>% 
+    tibble() |> 
+    set_names("team") |> 
+    unnest_wider(team) |> 
     # corrige tipos inteiros
-    mutate(across(c(teamId, ownerUserId), as.integer)) %>% 
-    return()
+    mutate(across(c(teamId, ownerUserId), as.integer))
 }
 
 
@@ -146,50 +145,99 @@ nfl_extractTeamOwners  <- function(teamsResp){
 
 
 # extrai o time e o roster
-nfl_extractTeamsFromMatchups <- function(leagueMatchupsResp){
+nfl_extractTeamsFromMatchups <- function(leagueMatchupsResp, season, week, tag, timestamp){
   
   # extract teams and rosters
-  leagueMatchupsResp$content$games[[1]]$leagues[[1]]$teams %>% 
+  teams_raw <- leagueMatchupsResp$content$games[[1]]$leagues[[1]]$teams |> 
     #transforma a lista de times em tibble
-    tibble(team=.) %>% 
-    unnest_wider(team) %>% 
-    # corrige tipos inteiros
-    mutate(across(c(teamId, ownerUserId), as.integer)) %>% 
-    # transforma a lista de rosters (em cada time) em um tibble
-    mutate( rosters = map(rosters, function(r){
-      r[[1]] %>% 
-        bind_rows(.id="slotPosition") %>% 
-        as_tibble() %>% 
-        mutate(across(rosterSlotId:playerId,as.integer)) %>% 
-        return()
-    })) %>%
-    # transform as estatisticas semanais em tibble
-    mutate( week.stats = map(stats, function(.stat){
-      .stat$week[[1]] %>%
-        tibble(week=names(.), week.stats=.) %>%
-        unnest_wider(week.stats) %>%
-        mutate( week = as.integer(week) ) %>%
-        mutate( pts  = ifelse("pts" %in% names(.), as.numeric(pts), as.numeric(0)) ) %>%
-        return()
-    })) %>%
-    # transforma as estatisticas da temporada em tibble
-    mutate( season.stats = map(stats, function(.stat){
-      .stat$season %>% tibble(season.stats=.) %>%
-        unnest_wider(season.stats)
-    })) %>% 
-    return()
+    tibble() |> 
+    set_names("team") |> 
+    unnest_wider(team) |> 
+    mutate(season, week, tag, timestamp)
+  
+  # dados do time na rodada 
+  nfl_teams_round <- teams_raw |> 
+    mutate(season=season, week=week) |> 
+    select(season, week, teamId, rank, imageUrl, imageUrlLarge)|> 
+    mutate(across(c(teamId, rank),as.integer))
+  
+  # dados do roster
+  nfl_teams_rosters <- teams_raw |>
+    select(season, week, tag, timestamp, teamId, rosters) |>
+    mutate(rosters = map(rosters, \(.r) {
+      .r[[1]] |>
+        bind_rows(.id = "slotPosition")
+    })) |>
+    unnest(rosters) |>
+    select(season, week, tag, timestamp, teamId, everything())
+  
+  nfl_teams_rosters_db <- dm(nfl_teams_round, nfl_teams_rosters) |> 
+    dm_add_pk(nfl_teams_round, c(season, week, teamId)) |> 
+    dm_add_pk(nfl_teams_rosters, c(season, week, tag, timestamp, teamId)) |> 
+    dm_add_fk(nfl_teams_rosters, c(season, week, teamId), nfl_teams_round)
+  
+  return(nfl_teams_rosters_db)
 }
 
+nfl_extractStatsFromMatchups <- function(leagueMatchupsResp, week, season, tag, timestamp){
+  
+  # extract teams and rosters
+  teams_raw <- leagueMatchupsResp$content$games[[1]]$leagues[[1]]$teams |> 
+    #transforma a lista de times em tibble
+    tibble() |> 
+    set_names("team") |> 
+    unnest_wider(team) |> 
+    mutate(season, week, tag, timestamp)
+  
+  # statisticas do time na rodada
+  teams_stats <- teams_raw |> 
+    select(season, week, tag, timestamp, teamId, stats) |> 
+    mutate( weekStats = map(stats,\(.st){
+      .st$week[[1]] |> 
+        unlist() |> 
+        enframe() |> 
+        separate(name, into=c("week", "statId"), sep="\\.", convert = T) |> 
+        mutate( value = parse_number(value) ) |> 
+        select(statId, value)    
+    })) |> 
+    mutate( seasonStats = map(stats, \(.st){
+      .st$season[[1]] |> 
+        unlist() |> 
+        enframe()
+    }))
+  
+  nfl_teams_week_stats <- teams_stats |> 
+    select(season:teamId, weekStats) |> 
+    unnest(weekStats)
+    
+  nfl_teams_season_stats <- teams_stats |> 
+    select(season:teamId, seasonStats) |> 
+    unnest(seasonStats)
+    
+  nfl_teams_stats <- dm(nfl_teams_week_stats, nfl_teams_season_stats) |> 
+    dm_add_pk(nfl_teams_week_stats, c(season, week, tag, timestamp, teamId, statId)) |> 
+    dm_add_pk(nfl_teams_season_stats, c(season, week, tag, timestamp, teamId))
+  
+  return(nfl_teams_stats)
+    
+}
+
+
 # extrai os jogos
-nfl_extractMatchups <- function(leagueMatchupsResp){
+nfl_extractMatchups <- function(leagueMatchupsResp, season){
   
   # extract matchups
-  leagueMatchupsResp$content$games[[1]]$leagues[[1]]$matchups %>% 
-    tibble(matchups=.) %>% 
-    unnest_wider(matchups) %>% 
-    unnest_wider(awayTeam, names_sep=".") %>% 
-    unnest_wider(homeTeam, names_sep=".") %>% 
-    mutate(across(c(week, ends_with("teamId")), as.integer)) %>% 
-    return()
-  
+  leagueMatchupsResp$content$games[[1]]$leagues[[1]]$matchups |> 
+    tibble() %>% 
+    set_names("matchups") |> 
+    unnest_wider(matchups) |> 
+    unnest_wider(awayTeam, names_sep="_") |> 
+    unnest_wider(homeTeam, names_sep="_") |>
+    janitor::clean_names("lower_camel") |> 
+    mutate(
+      season=season,
+      across(c(week, ends_with("TeamId"), ends_with("PlayoffSeeding")), as.integer),
+      across(starts_with("bracket"), as.character)
+    ) |> 
+    select(season, week, matchupId, everything())
 }
