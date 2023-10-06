@@ -54,36 +54,6 @@ updateDB <- function(db, db_file){
   return(db)
 }
 
-# update projections database
-updateFFAProjetions <- function(ffa_db, .ffa_db_file="./data/ffa_db.rds"){
-  
-  # verifica se ha uma versão antiga
-  if(file.exists(.ffa_db_file)){
-    # atualiza se houver
-    old_ffa_db <- readRDS(.ffa_db_file)
-    ffa_db <- dm_rows_upsert(old_ffa_db, ffa_db, in_place = F)
-  }
-  
-  saveRDS(ffa_db, .ffa_db_file)
-  
-  return(ffa_db)
-}
-
-# update projections database
-updateFantasyTeams <- function(nfl_teams_db, .db_file="./data/nfl_teams_db.rds"){
-  
-  # verifica se ha uma versão antiga
-  if(file.exists(.db_file)){
-    # atualiza se houver
-    old_nfl_teams_db <- readRDS(.db_file)
-    nfl_teams_db <- dm_rows_upsert(old_nfl_teams_db, nfl_teams_db, in_place = F)
-  }
-  
-  saveRDS(nfl_teams_db, .db_file)
-  
-  return(nfl_teams_db)
-}
-
 getFantasyTeams <- function(leagueId, authToken){
   team_resp <- nfl_league_teams(authToken, leagueId)
   
@@ -124,6 +94,20 @@ getFantasyPlayers <- function(leagueId, authToken) {
   
 }
 
+getFantasyStatistics <- function(leagueId, authToken, season, week){
+  
+  statsDict <- nfl_gameStats() |> 
+    nfl_extractStatDict()
+  
+  players_stats_resp <- nfl_players_stats(authToken, leagueId, season, 1:week)
+  
+  nfl_stats_db <- players_stats_resp |> 
+    nfl_extractPlayersStats(statsDict)
+  
+  return(nfl_stats_db)
+  
+}
+
 
 # MASTER PARAMETERS ####
 config <- yaml::read_yaml("./config/config.yml")
@@ -131,47 +115,32 @@ config <- yaml::read_yaml("./config/config.yml")
 .week <- 5L
 .leagueId <- config$leagueId
 .scoreRules <- yaml::read_yaml("./config/score_settings.yml")
-.tag <- "final"
+.tag <- "posTNF"
 
 # update ffa_db ####
 source("./R/api/ffa_projection.R")
 ffa_db <- getFFAProjections(.season, .week, .tag, .scoreRules)
-ffa_db <- updateFFAProjetions(ffa_db)
+ffa_db <- updateDB(ffa_db, "./data/ffa_db.rds")
 dm_draw(ffa_db,view_type = "all", column_types = T)
 
 # update nfl_teams ####
 source("./R/api/nfl_league.R")
-nfl_teams_db <- getFantasyTeams(config$leagueId, config$authToken)
-nfl_teams_db <- updateFantasyTeams(nfl_teams_db)
-dm_draw(nfl_teams_db, view_type = "all", column_types = T)
+nfl_fan_teams_db <- getFantasyTeams(config$leagueId, config$authToken)
+nfl_fan_teams_db <- updateDB(nfl_fan_teams_db, "./data/nfl_fan_teams_db.rds")
+dm_draw(nfl_fan_teams_db, view_type = "all", column_types = T)
 
-# update players 
+# update players  
 source("./R/api/nfl_players.R")
 nfl_players_db <- getFantasyPlayers(config$leagueId, config$authToken)
+nfl_players_db <- updateDB(nfl_players_db, "./data/nfl_players_db.rds")
 dm_draw(nfl_players_db, view_type = "all", column_types = T)
 
-
-
 # STATISTICS ####
-
 source("./R/api/nfl_game.R")
-statsDict <- nfl_gameStats() |> 
-  nfl_extractStatDict()
-
 source("./R/api/nfl_players.R")
-players_stats_resp <- nfl_players_stats(config$authToken, config$leagueId, .season, 1:.week)
-
-nfl_stats_db2023 <- players_stats_resp |> 
-  nfl_extractPlayersStats(statsDict)
-
-pbar 
-
-db <- nfl_stats_db2023 |> 
-  dm_rows_upsert(nfl_stats_db2022, in_place = F, progress = T)
-
-db$nfl_players_points |> 
-  pivot_wider(id_cols=playerId, names_from=c(season,week), values_from = pts)
-
+nfl_stats_db <- getFantasyStatistics(config$leagueId, config$authToken, .season, .week)
+nfl_stats_db <- updateDB(nfl_stats_db, "./data/nfl_stats_db.rds")
+dm_draw(nfl_stats_db, view_type = "all", column_types = T)
 
 
 
