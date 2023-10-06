@@ -7,13 +7,13 @@ source("./R/api/ffa_projection.R")
 
 # MASTER PARAMETERS ####
 config <- yaml::read_yaml("./config/config.yml")
-.season <- 2023
-.week <- 4
+.season <- 2023L
+.week <- 4L
 .leagueId <- config$leagueId
 .scoreRules <- yaml::read_yaml("./config/score_settings.yml")
-.tag <- "posWaivers"
+.tag <- "preLondonGame"
 
-ffa_scrape_db <- scrapeWebData(.tag, .week, .season)
+ffa_scrape_db <- scrapeWebData(.season, .week, .tag)
 
 temp_scape_filename <-
   glue(
@@ -25,9 +25,9 @@ saveRDS(ffa_scrape_db, temp_scape_filename)
 
 ffa_db <- calcProjections(ffa_scrape_db, .scoreRules)
 
-ffa_db2 <- calcProjections(ffa_scrape_db$ffa_scrape, .scoreRules)
+#ffa_db2 <- calcProjections(ffa_scrape_db$ffa_scrape, .scoreRules)
 
-ffa_db2 |>  
+ffa_db |>  
   dm_draw(view_type = "all", column_types = T)
 
 

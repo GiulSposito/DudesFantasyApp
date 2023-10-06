@@ -100,4 +100,6 @@ nfl_db <- dm(nfl_fantasy_teams_db,
   dm_add_fk(nfl_teams_round, c(teamId), nfl_teams)
 
 nfl_db |>
+  dm(ffa_db) |> 
+  dm_add_fk(nfl_players)
   dm_draw(view_type = "all")
