@@ -2,6 +2,7 @@ library(tidyverse)
 library(dm)
 library(ffanalytics)
 library(lubridate)
+library(glue)
 
 # script wrapping ffanalytics package
 
@@ -67,7 +68,7 @@ library(lubridate)
 
 
 # public function to call the scrap and to wrap it in a DM objetc
-scrapeWebData <- function(.tag, .week, .season) {
+scrapeWebData <- function(.season, .week, .tag) {
   scrape_raw <- .scrapeData(.week, .season)
 
   ffa_scrape <- tibble(
