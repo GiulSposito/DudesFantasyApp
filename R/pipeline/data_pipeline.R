@@ -1,244 +1,179 @@
 library(tidyverse)
 library(dm)
-library(glue)
 library(ffanalytics)
-library(progress)
-source("./R/api/ffa_projection.R")
+library(lubridate)
+
+
+# update projections
+getFFAProjections <- function(.season, .week, .tag, .scoreRules){
+  
+  # scrape the web
+  ffa_scrape_db <- scrapeWebData(.season, .week, .tag)
+  
+  # cache the scrape
+  temp_filename <-
+    glue(
+      "./data/temp/ffa_scrape_db_s{.season}w{.weeknumber}_{.tag}_{.timestamp}.rds",
+      .weeknumber = formatC(.week, width = 2, flag = "0"),
+      .timestamp = ffa_scrape_db$ffa_scrape[1,]$timestamp
+    )
+
+  # save scrape 
+  saveRDS(ffa_scrape_db, temp_filename)
+    
+  # calculates the projection
+  ffa_db <- calcProjections(ffa_scrape_db, .scoreRules)
+
+  # cache ffa_db
+  temp_filename <-
+    glue(
+      "./data/temp/ffa_db_s{.season}w{.weeknumber}_{.tag}_{.timestamp}.rds",
+      .weeknumber = formatC(.week, width = 2, flag = "0"),
+      .timestamp = ffa_scrape_db$ffa_scrape[1,]$timestamp
+    )
+  
+  # save scrape 
+  saveRDS(ffa_scrape_db, temp_filename)
+  
+  # return value
+  return(ffa_db)
+}
+
+# update projections database
+updateDB <- function(db, db_file){
+  
+  # verifica se ha uma versão antiga
+  if(file.exists(db_file)){
+    # atualiza se houver
+    db <- readRDS(db_file) |> 
+      dm_rows_upsert(db, in_place = F)
+  }
+  
+  saveRDS(db, db_file)
+  
+  return(db)
+}
+
+# update projections database
+updateFFAProjetions <- function(ffa_db, .ffa_db_file="./data/ffa_db.rds"){
+  
+  # verifica se ha uma versão antiga
+  if(file.exists(.ffa_db_file)){
+    # atualiza se houver
+    old_ffa_db <- readRDS(.ffa_db_file)
+    ffa_db <- dm_rows_upsert(old_ffa_db, ffa_db, in_place = F)
+  }
+  
+  saveRDS(ffa_db, .ffa_db_file)
+  
+  return(ffa_db)
+}
+
+# update projections database
+updateFantasyTeams <- function(nfl_teams_db, .db_file="./data/nfl_teams_db.rds"){
+  
+  # verifica se ha uma versão antiga
+  if(file.exists(.db_file)){
+    # atualiza se houver
+    old_nfl_teams_db <- readRDS(.db_file)
+    nfl_teams_db <- dm_rows_upsert(old_nfl_teams_db, nfl_teams_db, in_place = F)
+  }
+  
+  saveRDS(nfl_teams_db, .db_file)
+  
+  return(nfl_teams_db)
+}
+
+getFantasyTeams <- function(leagueId, authToken){
+  team_resp <- nfl_league_teams(authToken, leagueId)
+  
+  nfl_teams <- team_resp |> 
+    nfl_extractTeams()
+  
+  nfl_owners <- team_resp |> 
+    nfl_extractTeamOwners()
+  
+  nfl_teams_db <- dm(nfl_teams, nfl_owners) |> 
+    dm_add_pk(nfl_teams, teamId) |> 
+    dm_add_pk(nfl_owners, ownerUserId) |> 
+    dm_add_fk(nfl_teams, ownerUserId, nfl_owners)
+  
+  return(nfl_teams_db)
+}
+
+getFantasyPlayers <- function(leagueId, authToken) {
+  players_resp <-
+    nfl_players(.authToken = authToken,
+                .leagueId = leagueId)
+  
+  players_raw <- players_resp |> nfl_extractPlayers()
+  
+  nfl_players <- players_raw |>
+    select(-injuryGameStatus)
+  
+  nfl_player_injury_status <- players_raw |>
+    mutate(timestamp = lubridate::now()) |>
+    select(playerId, timestamp, injuryGameStatus)
+  
+  nfl_players_db <- dm(nfl_players, nfl_player_injury_status) |>
+    dm_add_pk(nfl_players, playerId) |>
+    dm_add_pk(nfl_player_injury_status, c(playerId, timestamp)) |>
+    dm_add_fk(nfl_player_injury_status, playerId, nfl_players)
+  
+  return(nfl_players_db)
+  
+}
+
 
 # MASTER PARAMETERS ####
 config <- yaml::read_yaml("./config/config.yml")
-.season <- 2023
-.week <- 4
+.season <- 2023L
+.week <- 5L
 .leagueId <- config$leagueId
 .scoreRules <- yaml::read_yaml("./config/score_settings.yml")
-.tag <- "posWaivers"
-
-ffa_scrape_db <- scrapeWebData(.tag, .week, .season)
-
-temp_scape_filename <-
-  glue(
-    "./data/temp/ffa_scrape_db_s{.season}w{.weeknumber}_{.tag}.rds",
-    .weeknumber = formatC(.week, width = 2, flag = "0")
-  )
-
-saveRDS(ffa_scrape_db, temp_scape_filename)
-
-ffa_db <- calcProjections(ffa_scrape_db, .scoreRules)
-
-ffa_db2 <- calcProjections(ffa_scrape_db$ffa_scrape, .scoreRules)
-
-ffa_db2 |>  
-  dm_draw(view_type = "all", column_types = T)
-
-
-ffa_db <- fs::dir_ls("./data/temp/", regexp = "ffa_scrape_db.+rds") |> 
-  map(readRDS, .progress = T) |> 
-  map(calcProjections, .scoreRules=.scoreRules, .progress = T)
-
-
-ffa_final <- ffa_db |>
-  reduce(dm_rows_upsert)
-
-ffa_final |> 
-  dm_draw(view_type = "all", column_types = T)
-
-ffa_final$ffa_players
-
-ffa_final$ffa_proj_source_points |>
-  count(season, week, tag, timestamp, pos) |> 
-  pivot_wider(names_from = pos, values_from = n) |> 
-  arrange(timestamp)
-
-?dm_rows_upsert
-
-
-ffa_scrape_db <- fs::dir_ls("./data/temp/", regexp = "ffa_scrape_db.+rds") |> 
-  map(readRDS) |> 
-  reduce(dm_rows_append)
-
-
-
-
-
-
-ffa_scrape_db$ffa_scrape
-
-ffa_scrape_db |> 
-  class()
-
-ffa_scrape_db$ffa_scrape[1,]$scrapeData[[1]] |> 
-  attributes()
-
-
-projs <- ffa_scrape_db$ffa_scrape |> 
-  (\(x) split(x,1:nrow(x)))() |> 
-  map(\(x, sr){
-    calcProjectionsScrapeData(.x)
-  }, sr=.scoreRules)
-
-    calcProjections, .scoreRules=.scoreRules,.progress=T)
-
-   
-  
-ffa_scrape_db$ffa_scrape[1,] |> 
-  calcProjectionsScrapeDF(.scoreRules = .scoreRules)
-
-
 .tag <- "final"
-dbs <- 1:3 |> 
-  map_chr(\(w) glue(
-    "./data/temp/ffa_scrape_db_s{.season}w{.weeknumber}_{.tag}.rds",
-    .weeknumber = formatC(w, width = 2, flag = "0")
-  )) 
-  
 
-dbresult <- dbs |> 
-  reduce(dm_rows_append)
-      
-dbresult$ffa_scrape
-    
-ffa_scrape_db_w1 <- readRDS("./data/temp/ffa_scrape_db_s2023w01_final.rds")
+# update ffa_db ####
+source("./R/api/ffa_projection.R")
+ffa_db <- getFFAProjections(.season, .week, .tag, .scoreRules)
+ffa_db <- updateFFAProjetions(ffa_db)
+dm_draw(ffa_db,view_type = "all", column_types = T)
 
+# update nfl_teams ####
+source("./R/api/nfl_league.R")
+nfl_teams_db <- getFantasyTeams(config$leagueId, config$authToken)
+nfl_teams_db <- updateFantasyTeams(nfl_teams_db)
+dm_draw(nfl_teams_db, view_type = "all", column_types = T)
 
-dbresult |> 
-  dm_draw(view_type = "all", column_types = T)
-
-
-
-
-?purrr
-
-ffa_db <- calcProjections(ffa_scrape_db, .scoreRules)
+# update players 
+source("./R/api/nfl_players.R")
+nfl_players_db <- getFantasyPlayers(config$leagueId, config$authToken)
+dm_draw(nfl_players_db, view_type = "all", column_types = T)
 
 
 
+# STATISTICS ####
+
+source("./R/api/nfl_game.R")
+statsDict <- nfl_gameStats() |> 
+  nfl_extractStatDict()
+
+source("./R/api/nfl_players.R")
+players_stats_resp <- nfl_players_stats(config$authToken, config$leagueId, .season, 1:.week)
+
+nfl_stats_db2023 <- players_stats_resp |> 
+  nfl_extractPlayersStats(statsDict)
+
+pbar 
+
+db <- nfl_stats_db2023 |> 
+  dm_rows_upsert(nfl_stats_db2022, in_place = F, progress = T)
+
+db$nfl_players_points |> 
+  pivot_wider(id_cols=playerId, names_from=c(season,week), values_from = pts)
 
 
 
-# PROJECTION SCRAPING ####
-.ffa_scrape_db <- scrapeWebData(.tag, .week, .season)
-
-# temp
-saveRDS(.ffa_scrape_db, "./data/ffa_scrap_db_temp.rds")
-.ffa_scrape_db <- readRDS("./data/ffa_scrap_db_temp.rds")
-
-# FFA CALCULATIONS
-ffa_db <- calcProjections(.ffa_scrape_db, .scoreRules)
-dm_draw(ffa_db, view_type = "all", column_types = F)
-
-ffa_db$ffa_scrape |> 
-  filter(season==2023, week==3) |> 
-  filter(timestamp == max(timestamp)) |> 
-  select(-scrapeData) |> 
-  inner_join(ffa_db$ffa_projtable)
-
-# FFA SECTION ####
-
-# FFA PLAYER IDS ####
-load("../ffanalytics/R/sysdata.rda")
-ffa_player_ids <- player_ids
-
-# FFA SCRAPPING SITES ####
-source("./R/import/ffa_player_projection.R")
-webScrape <- scrapPlayersPredictions(week, season)
-
-# FFA PROJECT TABLE ####
-ffa_raw_projection_table <- 
-  projections_table(webScrape, .scoreRules) |> 
-  add_ecr() |> 
-  add_uncertainty() |> 
-  add_player_info()
-
-ffa_projtable <- ffa_raw_projection_table |> 
-  select(avg_type:uncertainty) |> 
-  mutate(
-    season = .season,
-    week = .week
-  ) |> 
-  select(season, week, avg_type, id, everything()) |> 
-  distinct()
-
-# FFA SITE POINTS ####
-source("./R_old/simulation/data_src_proj_table.R")
-ffa_raw_source_points <- projections_table_data_sources(webScrape, yaml::read_yaml("./config/score_settings.yml")) 
-
-ffa_proj_source_points <- ffa_raw_source_points |>
-  mutate(season = .season, week = .week) |> 
-  select(season, week, data_src, id, pos, everything())
-
-# FFA PLAYERS ####
-ffa_players <- ffa_raw_projection_table |> 
-  select(id:pos, first_name:exp) |> 
-  distinct()
-
-ffa_db <- dm(ffa_player_ids, ffa_players, ffa_projtable, ffa_proj_source_points) |> 
-  dm_add_pk(ffa_player_ids, id, check = T) |> 
-  dm_add_pk(ffa_players, c(id, pos), check=T) |> 
-  dm_add_pk(ffa_projtable, c(season, week, avg_type, id, pos), check = T) |> 
-  dm_add_fk(ffa_players, id, ffa_player_ids) |> 
-  dm_add_fk(ffa_projtable, c(id, pos), ffa_players) |> 
-  dm_add_pk(ffa_proj_source_points, c(season, week, data_src, id, pos), check=T) |> 
-  dm_add_fk(ffa_proj_source_points, c(id, pos), ffa_players)
-
-dm_draw(ffa_db, view_type = "all", column_types = F)
-
-ffa_db |> 
-  saveRDS("./new_db/ffa_db_w03_s23.rds")
-
-# NFL ####
-
-# TEAMS
-
-source("./R/api/ffa_league.R")
-team_resp <- ffa_league_teams(config$authToken, config$leagueId)
-
-nfl_teams <- team_resp |> 
-  ffa_extractTeams()
-
-nfl_owners <- team_resp |> 
-  ffa_extractTeamOwners()
-
-nfl_db <- dm(nfl_teams, nfl_owners) |> 
-  dm_add_pk(nfl_teams, teamId) |> 
-  dm_add_pk(nfl_owners, ownerUserId) |> 
-  dm_add_fk(nfl_teams, ownerUserId, nfl_owners)
-
-dm_draw(nfl_db, view_type="all")
-
-# PLAYERS
-source("./R/api/ffa_players.R")
-
-players <- ffa_players(.authToken = config$authToken, .leagueId = config$leagueId)
-
-players |> ffa_extractPlayers()
 
 
-players_stats <- ffa_players_stats(config$authToken, config$leagueId, .season, 1:.week) %>%  
-  ffa_extractPlayersStats()
 
-teamsResp$content$games[[1]]$leagues[[1]] |> 
-  pull()
-
-
-team_resp$content$games[[1]] |> 
-  toJSON() |> 
-  fromJSON()
-  flatten()
-
-our_df <- your_list %>%
-  
-  # make json, then make list
-  toJSON() %>%
-  fromJSON() %>%
-  
-  # remove classification level
-  purrr::flatten() %>%
-  
-  # turn nested lists into dataframes
-  map_if(is_list, as_tibble) %>%
-  
-  # bind_cols needs tibbles to be in lists
-  map_if(is_tibble, list) %>%
-  
-  # creates nested dataframe
-  bind_cols()
