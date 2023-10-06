@@ -132,9 +132,13 @@ nfl_players_advanced <- function(.authToken, .leagueId, .season, .weeks, .player
 }  
 
 .unnestStats <- function (dt, statName){
-  dt |> 
+  dt_filtered <- dt |> 
     select(playerId, {{statName}}) |> 
-    filter(map_int({{statName}}, nrow)>0) |> 
+    filter(map_int({{statName}}, nrow)>0)
+  
+  if (nrow(dt_filtered)==0) return(NULL)
+  
+  dt_filtered |> 
     unnest({{statName}}) |> 
     mutate(
       across(c(-statId,-value), as.integer),
