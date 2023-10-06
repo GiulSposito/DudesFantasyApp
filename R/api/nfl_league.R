@@ -169,17 +169,18 @@ nfl_extractTeamsFromMatchups <- function(leagueMatchupsResp, season, week, tag, 
         bind_rows(.id = "slotPosition")
     })) |>
     unnest(rosters) |>
-    select(season, week, tag, timestamp, teamId, everything())
+    select(season, week, tag, timestamp, teamId, everything()) |> 
+    mutate(across(c(teamId, rosterSlotId, playerId), as.integer))
   
   nfl_teams_rosters_db <- dm(nfl_teams_round, nfl_teams_rosters) |> 
     dm_add_pk(nfl_teams_round, c(season, week, teamId)) |> 
-    dm_add_pk(nfl_teams_rosters, c(season, week, tag, timestamp, teamId)) |> 
+    dm_add_pk(nfl_teams_rosters, c(season, week, tag, timestamp, teamId, rosterSlotId, playerId)) |> 
     dm_add_fk(nfl_teams_rosters, c(season, week, teamId), nfl_teams_round)
   
   return(nfl_teams_rosters_db)
 }
 
-nfl_extractStatsFromMatchups <- function(leagueMatchupsResp, week, season, tag, timestamp){
+nfl_extractStatsFromMatchups <- function(leagueMatchupsResp, season,  week, tag, timestamp){
   
   # extract teams and rosters
   teams_raw <- leagueMatchupsResp$content$games[[1]]$leagues[[1]]$teams |> 
@@ -208,15 +209,17 @@ nfl_extractStatsFromMatchups <- function(leagueMatchupsResp, week, season, tag, 
   
   nfl_teams_week_stats <- teams_stats |> 
     select(season:teamId, weekStats) |> 
-    unnest(weekStats)
+    unnest(weekStats) |> 
+    mutate(teamId = as.integer(teamId))
     
   nfl_teams_season_stats <- teams_stats |> 
     select(season:teamId, seasonStats) |> 
-    unnest(seasonStats)
+    unnest(seasonStats) |> 
+    mutate(teamId = as.integer(teamId))
     
   nfl_teams_stats <- dm(nfl_teams_week_stats, nfl_teams_season_stats) |> 
     dm_add_pk(nfl_teams_week_stats, c(season, week, tag, timestamp, teamId, statId)) |> 
-    dm_add_pk(nfl_teams_season_stats, c(season, week, tag, timestamp, teamId))
+    dm_add_pk(nfl_teams_season_stats, c(season, week, tag, timestamp, teamId, name))
   
   return(nfl_teams_stats)
     
