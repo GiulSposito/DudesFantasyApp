@@ -131,10 +131,10 @@ updateDB <- function(db, db_file){
 # MASTER PARAMETERS ####
 config <- yaml::read_yaml("./config/config.yml")
 .season <- 2023L
-.week <- 5L
+.week <- 6L
 .leagueId <- config$leagueId
 .scoreRules <- yaml::read_yaml("./config/score_settings.yml")
-.tag <- "posTNF"
+.tag <- "preTNF"
 
 # update ffa_db ####
 source("./R/api/ffa_projection.R")
@@ -166,6 +166,4 @@ source("./R/api/nfl_league.R")
 nfl_round_db <- getFantasyRound(config$leagueId, config$authToken, .season, .week, .tag)
 nfl_round_db <- updateDB(nfl_round_db, "./data/nfl_round_db.rds")
 dm_draw(nfl_round_db, view_type = "all", column_types = T)
-
-
 
