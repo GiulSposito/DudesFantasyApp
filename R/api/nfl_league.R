@@ -198,7 +198,8 @@ nfl_extractStatsFromMatchups <- function(leagueMatchupsResp, season,  week, tag,
         unlist() |> 
         enframe() |> 
         separate(name, into=c("week", "statId"), sep="\\.", convert = T) |> 
-        mutate( value = parse_number(value) ) |> 
+        mutate( value = parse_number(as.character(value)),
+                statId = as.character(statId)) |> 
         select(statId, value)    
     })) |> 
     mutate( seasonStats = map(stats, \(.st){
