@@ -12,10 +12,10 @@ round |>
 
 
 rosters <- round$nfl_teams_rosters |> 
-  filter(tag=="final", week==5)
+  filter(tag=="final", week==6)
 
 points <- stats$nfl_players_points |> 
-  filter(season==2023, week==5)
+  filter(season==2023, week==6)
 
 players <- playersDB$nfl_players |> 
   select(playerId, name, position)

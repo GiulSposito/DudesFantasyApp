@@ -1,8 +1,8 @@
 library(tidyverse)
 library(dm)
+library(glue)
 library(ffanalytics)
 library(lubridate)
-
 
 # update projections
 getFFAProjections <- function(.season, .week, .tag, .scoreRules){
@@ -113,6 +113,42 @@ getFantasyRound <-  function(leagueId, authToken, season, week, tag){
   
 }
 
+getFantasyRecap <- function(.authToken, .leagueId, .week, .teams){
+  
+  nfl_recap_df <- .teams |>
+    map_df(\(team, authToken, leagueId, week) {
+      nfl_recap_resp <-
+        nfl_league_matchups_recap(authToken, leagueId, week, team)
+      
+      nfl_recap_data <- nfl_recap_resp$content |>
+        enframe() |>
+        pivot_wider() |>
+        unnest(
+          c(
+            title,
+            type,
+            written_at,
+            weekday,
+            league_id,
+            season,
+            week_num,
+            playoff,
+            standard_scheduling,
+            standard_scoring
+          )
+        ) |>
+        select(leagueId = league_id, season, week = week_num, everything())
+      
+      return(nfl_recap_data)
+    },
+    authToken = .authToken,
+    leagueId = .leagueId,
+    week = .week) |> 
+    distinct()
+  
+}
+
+
 # update projections database
 updateDB <- function(db, db_file){
   
@@ -131,10 +167,10 @@ updateDB <- function(db, db_file){
 # MASTER PARAMETERS ####
 config <- yaml::read_yaml("./config/config.yml")
 .season <- 2023L
-.week <- 6L
+.week <- 7L
 .leagueId <- config$leagueId
 .scoreRules <- yaml::read_yaml("./config/score_settings.yml")
-.tag <- "preTNF"
+.tag <- "posWaivers"
 
 # update ffa_db ####
 source("./R/api/ffa_projection.R")
@@ -166,4 +202,18 @@ source("./R/api/nfl_league.R")
 nfl_round_db <- getFantasyRound(config$leagueId, config$authToken, .season, .week, .tag)
 nfl_round_db <- updateDB(nfl_round_db, "./data/nfl_round_db.rds")
 dm_draw(nfl_round_db, view_type = "all", column_types = T)
+
+
+# FANTASY: RECAP ####
+source("./R/api/nfl_league.R")
+nfl_recap_df <-
+  getFantasyRecap(
+    config$authToken,
+    config$leagueId,
+    5,
+    readRDS("./data/nfl_teams_db.rds")$nfl_teams$teamId
+  )
+nfl_recap_db <- nfl_convertRecapDB(nfl_recap_df)
+nfl_recap_db <- updateDB(nfl_recap_db, "./data/nfl_recap_db.rds")
+
 
