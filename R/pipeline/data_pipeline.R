@@ -187,32 +187,32 @@ config <- yaml::read_yaml("./config/config.yml")
 source("./R/api/ffa_projection.R")
 ffa_db <- getFFAProjections(.season, .week, .tag, .scoreRules)
 ffa_db <- updateDB(ffa_db, "./data/ffa_db.rds")
-dm_draw(ffa_db,view_type = "all", column_types = T)
+dm_draw(ffa_db,view_type = "all", column_types = T, rankdir = "RL")
 
 # update nfl_teams ####
 source("./R/api/nfl_league.R")
 nfl_teams_db <- getFantasyTeams(config$leagueId, config$authToken)
 nfl_teams_db <- updateDB(nfl_teams_db, "./data/nfl_teams_db.rds")
-dm_draw(nfl_teams_db, view_type = "all", column_types = T)
+dm_draw(nfl_teams_db, view_type = "all", column_types = T, rankdir = "RL")
 
 # update players  
 source("./R/api/nfl_players.R")
 nfl_players_db <- getFantasyPlayers(config$leagueId, config$authToken)
 nfl_players_db <- updateDB(nfl_players_db, "./data/nfl_players_db.rds")
-dm_draw(nfl_players_db, view_type = "all", column_types = T)
+dm_draw(nfl_players_db, view_type = "all", column_types = T, rankdir = "RL")
 
 # STATISTICS ####
 source("./R/api/nfl_game.R")
 source("./R/api/nfl_players.R")
 nfl_stats_db <- getFantasyStatistics(config$leagueId, config$authToken, .season, .week)
 nfl_stats_db <- updateDB(nfl_stats_db, "./data/nfl_stats_db.rds")
-dm_draw(nfl_stats_db, view_type = "all", column_types = T)
+dm_draw(nfl_stats_db, view_type = "all", column_types = T, rankdir = "RL")
 
 # FANTASY: PLAYERS AND MATCHUPS ####
 source("./R/api/nfl_league.R")
 nfl_round_db <- getFantasyRound(config$leagueId, config$authToken, .season, .week, .tag)
 nfl_round_db <- updateDB(nfl_round_db, "./data/nfl_round_db.rds")
-dm_draw(nfl_round_db, view_type = "all", column_types = T)
+dm_draw(nfl_round_db, view_type = "all", column_types = T, rankdir = "RL")
 
 
 # FANTASY: RECAP ####
@@ -226,4 +226,5 @@ nfl_recap_df <-
   )
 nfl_recap_db <- nfl_convertRecapDB(nfl_recap_df)
 nfl_recap_db <- updateDB(nfl_recap_db, "./data/nfl_recap_db.rds")
+dm_draw(nfl_recap_db, view_type = "all", column_types = T, rankdir = "RL")
 
