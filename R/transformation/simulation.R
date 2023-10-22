@@ -3,7 +3,7 @@ library(dm)
 library(lubridate)
 library(glue)
 
-
+# calcula os erros das projeções dos datasources
 calcProjectionErrors <- function(season, weeks, tag=""){
   
   # projections
@@ -11,7 +11,7 @@ calcProjectionErrors <- function(season, weeks, tag=""){
   
   # seleciona temporada e semaanas
   proj_source_points <- ffa$ffa_proj_source_points |>
-    filter(season == season,
+    filter(season %in% season,
            week %in% weeks)
   
   # se tem uma tag, usa
@@ -42,22 +42,17 @@ calcProjectionErrors <- function(season, weeks, tag=""){
     
 }
 
+# aplica os erros de projeções passadas a uma projeção atual
+applyErrorToProjection <- function(ffa_projections, dudes_errors){
 
+  inner_join(
+    select(ffa_projections, season, week, tag, timestamp, id, pos, data_src, ptsProj=points),
+    select(dudes_errors, fromSeason=season, fromWeek=week, data_src, id, playerId, pos, ptsError),
+    by = join_by(id, pos, data_src)
+  ) |> 
+    mutate( points = ptsProj+ptsError ) |> 
+    select(season, week, tag, timestamp, id, playerId, pos, points, everything())
+  
+  
+}
 
-
-
-
-
-
-
-
-# simulation 1 - FLAT (only projection)
-SIM_SIZE = 1000L
-sim <- proj_source_points |> 
-  group_by(season, week, id, pos) |> 
-  sample_n(size=SIM_SIZE, replace = 10) |> 
-  ungroup() |> 
-  select(-data_src)  |> 
-  nest(simProjFlat=points,.by=c(season, week, id, pos))
-
-dudes_proj_errors
