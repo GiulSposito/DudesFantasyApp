@@ -164,13 +164,24 @@ updateDB <- function(db, db_file){
   return(db)
 }
 
+# salva respostas em arquivo temporário permitindo o reprocessamento
+saveTempResp <- function(obj, name, season, week, tag="NA", timestamp=now()){
+  
+  tsf <- format(timestamp, "%Y%m%d%H%M%S")
+  wf  <- formatC(week, width = 2, flag = "0")
+  filename <- glue::glue("./data/temp/{name}_s{season}_s{wf}_{tag}_{tsf}.rds")
+  saveRDS(obj, filename)
+  
+}
+
+
 # MASTER PARAMETERS ####
 config <- yaml::read_yaml("./config/config.yml")
 .season <- 2023L
 .week <- 7L
 .leagueId <- config$leagueId
 .scoreRules <- yaml::read_yaml("./config/score_settings.yml")
-.tag <- "posWaivers"
+.tag <- "preSundayGames"
 
 # update ffa_db ####
 source("./R/api/ffa_projection.R")
@@ -215,5 +226,4 @@ nfl_recap_df <-
   )
 nfl_recap_db <- nfl_convertRecapDB(nfl_recap_df)
 nfl_recap_db <- updateDB(nfl_recap_db, "./data/nfl_recap_db.rds")
-
 
