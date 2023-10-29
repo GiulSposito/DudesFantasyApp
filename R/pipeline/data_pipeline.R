@@ -178,7 +178,7 @@ saveTempResp <- function(obj, name, season, week, tag="NA", timestamp=now()){
 # MASTER PARAMETERS ####
 config <- yaml::read_yaml("./config/config.yml")
 .season <- 2023L
-.week <- 7L
+.week <- 8L
 .leagueId <- config$leagueId
 .scoreRules <- yaml::read_yaml("./config/score_settings.yml")
 .tag <- "preSundayGames"
@@ -208,7 +208,7 @@ nfl_stats_db <- getFantasyStatistics(config$leagueId, config$authToken, .season,
 nfl_stats_db <- updateDB(nfl_stats_db, "./data/nfl_stats_db.rds")
 dm_draw(nfl_stats_db, view_type = "all", column_types = T, rankdir = "RL")
 
-# FANTASY: PLAYERS AND MATCHUPS ####
+# FANTASY: ROUND PLAYERS AND MATCHUPS ####
 source("./R/api/nfl_league.R")
 nfl_round_db <- getFantasyRound(config$leagueId, config$authToken, .season, .week, .tag)
 nfl_round_db <- updateDB(nfl_round_db, "./data/nfl_round_db.rds")
@@ -221,10 +221,12 @@ nfl_recap_df <-
   getFantasyRecap(
     config$authToken,
     config$leagueId,
-    5,
+    7,
     readRDS("./data/nfl_teams_db.rds")$nfl_teams$teamId
   )
 nfl_recap_db <- nfl_convertRecapDB(nfl_recap_df)
 nfl_recap_db <- updateDB(nfl_recap_db, "./data/nfl_recap_db.rds")
 dm_draw(nfl_recap_db, view_type = "all", column_types = T, rankdir = "RL")
+
+nfl_recap_db$nfl_recap$week |> unique()
 
