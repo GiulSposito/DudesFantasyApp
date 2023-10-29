@@ -43,16 +43,14 @@ calcProjectionErrors <- function(season, weeks, tag=""){
 }
 
 # aplica os erros de projeções passadas a uma projeção atual
-applyErrorToProjection <- function(ffa_projections, dudes_errors){
+applyErrorToProjection <- function(ffa_proj_source, dudes_errors){
 
   inner_join(
-    select(ffa_projections, season, week, tag, timestamp, id, pos, data_src, ptsProj=points),
+    select(ffa_proj_source, season, week, tag, timestamp, id, pos, data_src, ptsProj=points),
     select(dudes_errors, fromSeason=season, fromWeek=week, data_src, id, playerId, pos, ptsError),
-    by = join_by(id, pos, data_src)
+    by = join_by(id, pos, data_src, week>fromWeek)
   ) |> 
     mutate( points = ptsProj+ptsError ) |> 
-    select(season, week, tag, timestamp, id, playerId, pos, points, everything())
-  
-  
+    select(season, week, tag, timestamp, id, playerId, pos, points, everything()) 
 }
 
