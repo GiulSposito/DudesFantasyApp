@@ -114,6 +114,12 @@ nfl_players_advanced <- function(.authToken, .leagueId, .season, .weeks, .player
   
 }
 
+.enframeRankAgainst <- function(stat){
+  stat$opponent |> 
+    unlist() |> 
+    enframe() |> 
+    pivot_wider()
+}
 
 .enframeWeekStats <- function(stat){
   stat$week |> 
@@ -198,7 +204,6 @@ nfl_extractPlayersStats <- function(playersStatsResp, statsDict){
   
   nfl_stat_dictionary <- statsDict |> 
     rename(statId=id)
-  
   
   nfl_stats_db <- dm(nfl_stat_dictionary,
                      nfl_players_points,
