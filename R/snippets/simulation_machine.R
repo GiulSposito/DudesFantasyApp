@@ -64,6 +64,13 @@ simulations <- proj_source |>
   bind_rows(simulations)
 
 # MONTECARLO (PROJ SOURCE + ERRORS) => N
+simulations <- proj_w_errors |> 
+  nest( points = c(points),
+        .by = c(season, week, id, pos, playerId) ) |> 
+  mutate( simType = "proj_src_errors", 
+          seeds = map(points, ~.x$points)) |> 
+  select(-points) |> 
+  bind_rows(simulations)
 
 # SAMPLING FROM DENSITY(PROJ SOURCE) => N
 simulations <- proj_source |>
@@ -82,6 +89,21 @@ simulations <- proj_source |>
   bind_rows(simulations)
 
 # SAMPLING FROM DENSITY(PROJ SOURCE + ERRORS) => N
+
+simulations <- proj_w_errors |> 
+  nest( points = c(points),
+        .by = c(season, week, id, pos, playerId) ) |> 
+  mutate( simType = "proj_src_errors_density", 
+          seeds = map(points, \(pts) {
+            if (nrow(pts) < 2)
+              return(pts$points)
+            den <- density(pts$points)
+            i <-
+              sample(length(den$x), 100, replace = T, prob = den$y)
+            return(den$x[i])
+          })) |> 
+  select(-points) |> 
+  bind_rows(simulations)
 
 # MONTECARLO (HISTORICAL DATA) => N
 simulations <- points |> 
@@ -117,8 +139,3 @@ simulations <- points |>
 # BAYESIAN DE DENSITY(PROJ SOURCE+ERRORS) | DENSITY(HISTORICAL_DATA) => N
 
 
-dm_draw(stt, view_type = "all", column_types = T)
-
-# DE PONTO UNICO:
-  # O PROJETA
-# 
