@@ -51,7 +51,7 @@ simulations <- proj_source |>
   filter(data_src=="NFL") |> 
   mutate( simType = data_src, 
           seeds = map(points, c)) |> 
-  select(-data_src, -points) |> 
+  select(-data_src, -points, -tag, -timestamp) |> 
   bind_rows(simulations)
 
 # MONTECARLO (PROJ SOURCE) => N
