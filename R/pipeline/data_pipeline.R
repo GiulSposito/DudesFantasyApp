@@ -178,10 +178,10 @@ saveTempResp <- function(obj, name, season, week, tag="NA", timestamp=now()){
 # MASTER PARAMETERS ####
 config <- yaml::read_yaml("./config/config.yml")
 .season <- 2023L
-.week <- 8L
+.week <- 9L
 .leagueId <- config$leagueId
 .scoreRules <- yaml::read_yaml("./config/score_settings.yml")
-.tag <- "preSundayGames"
+.tag <- "preWaivers"
 
 # update ffa_db ####
 source("./R/api/ffa_projection.R")
