@@ -83,7 +83,6 @@ simulations <- bind_rows(
   select(-points) |>
   bind_rows(simulations)
 
-
 # SAMPLING FROM DENSITY(PROJ SOURCE) => N
 simulations <- proj_source |>
   nest(points = points,
@@ -165,15 +164,102 @@ simulations <- points |>
   mutate(season = SEASON, week = WEEK) |>
   bind_rows(simulations)
 
-# BAYESIAN DE DENSITY(PROJ SOURCE) + DENSITY(HISTORICAL_DATA) => N
-# BAYESIAN DE DENSITY(PROJ ERRORS) +  DENSITY(HISTORICAL_DATA) => N
-# BAYESIAN DE DENSITY(PROJ SOURCE+ERRORS) +  DENSITY(HISTORICAL_DATA) => N
+# MONTECARLO (PROJ SOURCE*BALANCED + ERRORS) +  => N
 
-simulations |>
+simulations <-
+  inner_join(
+    # projecoes com erro
+    proj_w_errors |>
+      nest(
+        projPtsErrors = points,
+        .by = c(season, week, id, playerId, pos)
+      ) |>
+      mutate(projPtsErrors = map(projPtsErrors, ~ .x$points)),
+    # projecoes da semana
+    proj_source |>
+      nest(
+        points = points,
+        .by = c(season, week, id, playerId, pos)
+      ) |>
+      mutate(points = map(points, ~ .x$points)),
+    # join
+    by = join_by(season, week, id, playerId, pos)
+  ) |>
+  mutate(simType = "proj_src_w_errors_balanced",
+         seeds = map2(projPtsErrors, points, \(ptsA, ptsB) {
+           # tamanho dos vetores
+           lenA <- length(ptsA)
+           lenB <- length(ptsB)
+           
+           # retorna vetores de igual representacao
+           if (lenA == lenB)
+             return(c(ptsA, ptsB))
+           if (lenA > lenB)
+             return(c(ptsA, ptsB, sample(ptsB, lenA - lenB, replace = T)))
+           if (lenA < lenB)
+             return(c(ptsA, ptsB, sample(ptsA, lenB - lenA, replace = T)))
+           
+         })) |>
+  select(-projPtsErrors, -points) |>
+  bind_rows(simulations)
+
+
+# DENSITY (PROJ SOURCE*BALANCED + ERRORS) => N
+simulations <-
+  inner_join(
+    # projecoes com erro
+    proj_w_errors |>
+      nest(
+        projPtsErrors = points,
+        .by = c(season, week, id, playerId, pos)
+      ) |>
+      mutate(projPtsErrors = map(projPtsErrors, ~ .x$points)),
+    # projecoes da semana
+    proj_source |>
+      nest(
+        points = points,
+        .by = c(season, week, id, playerId, pos)
+      ) |>
+      mutate(points = map(points, ~ .x$points)),
+    # join
+    by = join_by(season, week, id, playerId, pos)
+  ) |>
+  mutate(simType = "proj_src_w_errors_balanced_density",
+         seeds = map2(projPtsErrors, points, \(ptsA, ptsB) {
+           # 100 sampling from ptsA set
+           if(length(ptsA)<2) {
+             respA <- rep(ptsA, 100)             
+           } else {
+             denA <- density(ptsA)
+             iA <- sample(length(denA$x), 100, replace = T, prob = denA$y)
+             respA <- denA$x[iA]
+           }
+           
+           # 100 sampling from ptsB set
+           if(length(ptsB)<2) {
+             respB <- rep(ptsB, 100)             
+           } else {
+             denB <- density(ptsB)
+             iB <- sample(length(denB$x), 100, replace = T, prob = denB$y)
+             respB <- denB$x[iB]
+           }
+           
+           # retorna os dois samplings
+           return(c(respA, respB))
+
+         })) |>
+  select(-projPtsErrors, -points) |>
+  bind_rows(simulations)
+
+
+
+splot <- simulations |>
   filter(id == "13593") |>
-  filter(week == 6, str_starts(simType, "proj_src")) |> 
+  filter(week == 7) |> 
   unnest(seeds) |> 
   ggplot(aes(x=seeds, fill=simType)) +
   geom_density(alpha=.5) +
   ggplot2::scale_fill_brewer(palette = "Set1") +
   theme_light()
+
+plotly::ggplotly(splot)

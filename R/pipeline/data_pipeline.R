@@ -181,7 +181,7 @@ config <- yaml::read_yaml("./config/config.yml")
 .week <- 9L
 .leagueId <- config$leagueId
 .scoreRules <- yaml::read_yaml("./config/score_settings.yml")
-.tag <- "preWaivers"
+.tag <- "posTNF"
 
 # update ffa_db ####
 source("./R/api/ffa_projection.R")
@@ -221,7 +221,7 @@ nfl_recap_df <-
   getFantasyRecap(
     config$authToken,
     config$leagueId,
-    7,
+    8,
     readRDS("./data/nfl_teams_db.rds")$nfl_teams$teamId
   )
 nfl_recap_db <- nfl_convertRecapDB(nfl_recap_df)
