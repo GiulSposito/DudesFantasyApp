@@ -41,39 +41,39 @@ proj_w_errors <- applyErrorToProjection(proj_source, errors)
 
 
 # OS VALORES DA PROJETABLE - 1 PTS por AVG TYPE
-simulations <- proj_table |>
+dudes_simSeeds <- proj_table |>
   mutate(simType = paste0("proj_table_", avg_type),
          seeds = map(points, c)) |>
   select(-avg_type,-points)
 
 # O VALOR DO PROJ_SOURCE DA NFL - 1 PTS
-simulations <- proj_source |>
+dudes_simSeeds <- proj_source |>
   filter(data_src == "NFL") |>
   mutate(simType = data_src,
          seeds = map(points, c)) |>
   select(-data_src,-points,-tag,-timestamp) |>
-  bind_rows(simulations)
+  bind_rows(dudes_simSeeds)
 
 # MONTECARLO (PROJ SOURCE) => N
-simulations <- proj_source |>
+dudes_simSeeds <- proj_source |>
   nest(points = points,
        .by = c(season, week, id, pos, playerId)) |>
   mutate(simType = "proj_src",
          seeds = map(points, ~ .x$points)) |>
   select(-points) |>
-  bind_rows(simulations)
+  bind_rows(dudes_simSeeds)
 
 # MONTECARLO (PROJ SOURCE ERRORS) => N
-simulations <- proj_w_errors |>
+dudes_simSeeds <- proj_w_errors |>
   nest(points = c(points),
        .by = c(season, week, id, pos, playerId)) |>
   mutate(simType = "proj_src_errors",
          seeds = map(points, ~ .x$points)) |>
   select(-points) |>
-  bind_rows(simulations)
+  bind_rows(dudes_simSeeds)
 
 # MONTECARLO (PROJ SOURCE + ERRORS) => N
-simulations <- bind_rows(
+dudes_simSeeds <- bind_rows(
   select(proj_source, season, week, id, pos, playerId, points),
   select(proj_w_errors, season, week, id, pos, playerId, points)
 ) |> nest(points = points,
@@ -81,10 +81,10 @@ simulations <- bind_rows(
   mutate(simType = "proj_src_w_errors",
          seeds = map(points, ~ .x$points)) |>
   select(-points) |>
-  bind_rows(simulations)
+  bind_rows(dudes_simSeeds)
 
 # SAMPLING FROM DENSITY(PROJ SOURCE) => N
-simulations <- proj_source |>
+dudes_simSeeds <- proj_source |>
   nest(points = points,
        .by = c(season, week, id, pos, playerId)) |>
   mutate(simType = "proj_src_density",
@@ -97,11 +97,11 @@ simulations <- proj_source |>
            return(den$x[i])
          })) |>
   select(-points) |>
-  bind_rows(simulations)
+  bind_rows(dudes_simSeeds)
 
 # SAMPLING FROM DENSITY(PROJ SOURCE ERRORS) => N
 
-simulations <- proj_w_errors |>
+dudes_simSeeds <- proj_w_errors |>
   nest(points = c(points),
        .by = c(season, week, id, pos, playerId)) |>
   mutate(simType = "proj_src_errors_density",
@@ -114,10 +114,10 @@ simulations <- proj_w_errors |>
            return(den$x[i])
          })) |>
   select(-points) |>
-  bind_rows(simulations)
+  bind_rows(dudes_simSeeds)
 
 # SAMPLING FROM DENSITY(PROJ SOURCE + ERRORS) => N
-simulations <- bind_rows(
+dudes_simSeeds <- bind_rows(
   select(proj_source, season, week, id, pos, playerId, points),
   select(proj_w_errors, season, week, id, pos, playerId, points)
 ) |> nest(points = points,
@@ -132,10 +132,10 @@ simulations <- bind_rows(
            return(den$x[i])
          })) |>
   select(-points) |>
-  bind_rows(simulations)
+  bind_rows(dudes_simSeeds)
 
 # MONTECARLO (HISTORICAL DATA) => N
-simulations <- points |>
+dudes_simSeeds <- points |>
   filter(season < SEASON | (season == SEASON & week < WEEK)) |>
   filter(week != 0) |>
   nest(pts = pts, .by = c(id, playerId)) |>
@@ -143,11 +143,11 @@ simulations <- points |>
          seeds = map(pts, ~ .x$pts)) |>
   select(-pts) |>
   mutate(season = SEASON, week = WEEK) |>
-  bind_rows(simulations)
+  bind_rows(dudes_simSeeds)
 
 # SAMPLING FROM DENSITY(HISTORICAL_DATA) => N
 
-simulations <- points |>
+dudes_simSeeds <- points |>
   filter(season < SEASON | (season == SEASON & week < WEEK)) |>
   filter(week != 0) |>
   nest(pts = pts, .by = c(id, playerId)) |>
@@ -162,11 +162,11 @@ simulations <- points |>
          })) |>
   select(-pts) |>
   mutate(season = SEASON, week = WEEK) |>
-  bind_rows(simulations)
+  bind_rows(dudes_simSeeds)
 
 # MONTECARLO (PROJ SOURCE*BALANCED + ERRORS) +  => N
 
-simulations <-
+dudes_simSeeds <-
   inner_join(
     # projecoes com erro
     proj_w_errors |>
@@ -201,11 +201,11 @@ simulations <-
            
          })) |>
   select(-projPtsErrors, -points) |>
-  bind_rows(simulations)
+  bind_rows(dudes_simSeeds)
 
 
 # DENSITY (PROJ SOURCE*BALANCED + ERRORS) => N
-simulations <-
+dudes_simSeeds <-
   inner_join(
     # projecoes com erro
     proj_w_errors |>
@@ -244,22 +244,30 @@ simulations <-
              respB <- denB$x[iB]
            }
            
+           denAB <- density(c(respA, respB))
+           iAB <- sample(length(denAB$x), 100, replace = T, prob = denAB$y)
+
            # retorna os dois samplings
-           return(c(respA, respB))
+           return(denAB$x[iAB])
 
          })) |>
   select(-projPtsErrors, -points) |>
-  bind_rows(simulations)
+  bind_rows(dudes_simSeeds) |> 
+  arrange(season, week, id, playerId, pos, simType)
+  
+library(dm)
+simDB <- dm(dudes_simSeeds) |> 
+  dm_add_pk(dudes_simSeeds, c(season, week, id, playerId, pos, simType))
 
+saveRDS(simDB, "./data/dudes_simulation.rds")
 
-
-splot <- simulations |>
+splot <- dudes_simSeeds |>
   filter(id == "13593") |>
   filter(week == 7) |> 
   unnest(seeds) |> 
   ggplot(aes(x=seeds, fill=simType)) +
   geom_density(alpha=.5) +
-  ggplot2::scale_fill_brewer(palette = "Set1") +
+  ggplot2::scale_fill_brewer(type = "qual") +
   theme_light()
 
 plotly::ggplotly(splot)
