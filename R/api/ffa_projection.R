@@ -94,9 +94,15 @@ calcProjections <- function(.ffa_data, .scoreRules){
     ffa_scrape= .ffa_data
   }
   
-  # FFA PLAYER IDS ####
-  load("../ffanalytics/R/sysdata.rda")
-  ffa_player_ids <- player_ids
+  # FFA PLAYER IDS: ORIGINAL ####
+  # ffa_player_ids <- ffanalytics:::player_ids
+
+  # FFA PLAYER IDS: TRATANDO IDS NAO MAPEADOS ####
+  mis_player_ids <- readRDS("./data/missing_player_ids.rds")
+  
+  ffa_player_ids <- ffanalytics:::player_ids |> 
+    anti_join(mis_player_ids, by=join_by(id)) |> 
+    bind_rows(mis_player_ids)
   
   # FFA PROJECT TABLE ####
   ffa_raw_projection_table <- 
