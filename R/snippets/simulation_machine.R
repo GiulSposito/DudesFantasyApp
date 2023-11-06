@@ -4,7 +4,7 @@ library(tidyverse)
 # PARA CADA JOGADOR COM PONTO NA TEMPORADA 2023
 
 # semena alvo
-WEEK <- 7
+WEEK <- 9
 SEASON <- 2023
 
 # DATABASES
@@ -135,37 +135,42 @@ dudes_simSeeds <- bind_rows(
   bind_rows(dudes_simSeeds)
 
 # MONTECARLO (HISTORICAL DATA) => N
-dudes_simSeeds <- points |>
-  filter(season < SEASON | (season == SEASON & week < WEEK)) |>
-  filter(week != 0) |>
-  nest(pts = pts, .by = c(id, playerId)) |>
-  mutate(simType = "hist_data",
-         seeds = map(pts, ~ .x$pts)) |>
-  select(-pts) |>
-  mutate(season = SEASON, week = WEEK) |>
+dudes_simSeeds <- 1:WEEK |>
+  map_df(\(.WEEK, .SEASON, .points) {
+    .points |>
+      filter(season < .SEASON |
+               (season == .SEASON & week < .WEEK)) |>
+      filter(week != 0) |>
+      nest(pts = pts, .by = c(id, playerId)) |>
+      mutate(simType = "hist_data",
+             seeds = map(pts, ~ .x$pts)) |>
+      select(-pts) |>
+      mutate(season = .SEASON, week = .WEEK)
+  }, .SEASON = SEASON, .points = points) |>
   bind_rows(dudes_simSeeds)
 
 # SAMPLING FROM DENSITY(HISTORICAL_DATA) => N
-
-dudes_simSeeds <- points |>
-  filter(season < SEASON | (season == SEASON & week < WEEK)) |>
-  filter(week != 0) |>
-  nest(pts = pts, .by = c(id, playerId)) |>
-  mutate(simType = "hist_data_density",
-         seeds = map(pts, \(pts) {
-           if (nrow(pts) < 2)
-             return(pts$pts)
-           den <- density(pts$pts)
-           i <-
-             sample(length(den$x), 100, replace = T, prob = den$y)
-           return(den$x[i])
-         })) |>
-  select(-pts) |>
-  mutate(season = SEASON, week = WEEK) |>
+dudes_simSeeds <- 1:WEEK |>
+  map_df(\(.WEEK, .SEASON, .points) {
+    .points |>
+      filter(season < .SEASON | (season == .SEASON & week < .WEEK)) |>
+      filter(week != 0) |>
+      nest(pts = pts, .by = c(id, playerId)) |>
+      mutate(simType = "hist_data_density",
+             seeds = map(pts, \(pts) {
+               if (nrow(pts) < 2)
+                 return(pts$pts)
+               den <- density(pts$pts)
+               i <-
+                 sample(length(den$x), 100, replace = T, prob = den$y)
+               return(den$x[i])
+             })) |>
+      select(-pts) |>
+      mutate(season = .SEASON, week = .WEEK)
+  }, .SEASON = SEASON, .points = points) |>
   bind_rows(dudes_simSeeds)
 
 # MONTECARLO (PROJ SOURCE*BALANCED + ERRORS) +  => N
-
 dudes_simSeeds <-
   inner_join(
     # projecoes com erro
