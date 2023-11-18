@@ -3,18 +3,25 @@ library(dm)
 library(tidyverse)
 # PARA CADA JOGADOR COM PONTO NA TEMPORADA 2023
 
-# semena alvo
-WEEK <- 9
+# MASTER PARAMETERS ####
+WEEK <- 10
 SEASON <- 2023
 
-# DATABASES
+# SOURCE DATABASES ####
 ffa <- readRDS("./data/ffa_db.rds") # projecoes
 stt <- readRDS("./data/nfl_stats_db.rds") # pontuacao
 ply <- readRDS("./data/nfl_players_db.rds") # players info
 
+
 # id-map
 id_map <- ffa$ffa_player_ids |>
   transmute(id, playerId = as.integer(nfl_id))
+
+# bye week info
+bye_week <- ply$nfl_players |> 
+  select(playerId, week=byeWeek) |> 
+  inner_join(id_map, join_by(playerId)) |> 
+  mutate(season=SEASON)
 
 # proj table
 proj_table <- ffa$ffa_projtable |>
@@ -43,12 +50,17 @@ source("./R/transformation/simulation.R")
 errors <- calcProjectionErrors(SEASON, 1:WEEK)
 proj_w_errors <- applyErrorToProjection(proj_source, errors)
 
+# 1 PTS SEEDS ####
+
+cli::cli_progress_bar("Generating Seeds...", total = 14)
 
 # OS VALORES DA PROJETABLE - 1 PTS por AVG TYPE
 dudes_simSeeds <- proj_table |>
   mutate(simType = paste0("proj_table_", avg_type),
          seeds = map(points, c)) |>
   select(-avg_type, -points)
+
+cli::cli_progress_update()
 
 # O VALOR DO PROJ_SOURCE DA NFL - 1 PTS
 dudes_simSeeds <- proj_source |>
@@ -57,6 +69,10 @@ dudes_simSeeds <- proj_source |>
          seeds = map(points, c)) |>
   select(-data_src, -points, -tag, -timestamp) |>
   bind_rows(dudes_simSeeds)
+
+cli::cli_progress_update()
+
+# N PTS SEEDS ####
 
 # MONTECARLO (PROJ SOURCE) => N
 dudes_simSeeds <- proj_source |>
@@ -67,6 +83,8 @@ dudes_simSeeds <- proj_source |>
   select(-points) |>
   bind_rows(dudes_simSeeds)
 
+cli::cli_progress_update()
+
 # MONTECARLO (PROJ SOURCE ERRORS) => N
 dudes_simSeeds <- proj_w_errors |>
   nest(points = c(points),
@@ -76,16 +94,20 @@ dudes_simSeeds <- proj_w_errors |>
   select(-points) |>
   bind_rows(dudes_simSeeds)
 
+cli::cli_progress_update()
+
 # MONTECARLO (PROJ SOURCE + ERRORS) => N
 dudes_simSeeds <- bind_rows(
   select(proj_source, season, week, id, pos, playerId, points),
   select(proj_w_errors, season, week, id, pos, playerId, points)
 ) |> nest(points = points,
-          .by = c(season, week, id, pos, playerId)) |>
+        .by = c(season, week, id, pos, playerId)) |>
   mutate(simType = "proj_src_w_errors",
          seeds = map(points, ~ .x$points)) |>
   select(-points) |>
   bind_rows(dudes_simSeeds)
+
+cli::cli_progress_update()
 
 # SAMPLING FROM DENSITY(PROJ SOURCE) => N
 dudes_simSeeds <- proj_source |>
@@ -103,6 +125,8 @@ dudes_simSeeds <- proj_source |>
   select(-points) |>
   bind_rows(dudes_simSeeds)
 
+cli::cli_progress_update()
+
 # SAMPLING FROM DENSITY(PROJ SOURCE ERRORS) => N
 
 dudes_simSeeds <- proj_w_errors |>
@@ -119,6 +143,8 @@ dudes_simSeeds <- proj_w_errors |>
          })) |>
   select(-points) |>
   bind_rows(dudes_simSeeds)
+
+cli::cli_progress_update()
 
 # SAMPLING FROM DENSITY(PROJ SOURCE + ERRORS) => N
 dudes_simSeeds <- bind_rows(
@@ -138,6 +164,8 @@ dudes_simSeeds <- bind_rows(
   select(-points) |>
   bind_rows(dudes_simSeeds)
 
+cli::cli_progress_update()
+
 # MONTECARLO (HISTORICAL DATA) => N
 dudes_simSeeds <- 1:WEEK |>
   map_df(\(.WEEK, .SEASON, .points) {
@@ -152,6 +180,8 @@ dudes_simSeeds <- 1:WEEK |>
       mutate(season = .SEASON, week = .WEEK)
   }, .SEASON = SEASON, .points = points) |>
   bind_rows(dudes_simSeeds)
+
+cli::cli_progress_update()
 
 # SAMPLING FROM DENSITY(HISTORICAL_DATA) => N
 dudes_simSeeds <- 1:WEEK |>
@@ -174,6 +204,8 @@ dudes_simSeeds <- 1:WEEK |>
       mutate(season = .SEASON, week = .WEEK)
   }, .SEASON = SEASON, .points = points) |>
   bind_rows(dudes_simSeeds)
+
+cli::cli_progress_update()
 
 # MONTECARLO (PROJ SOURCE*BALANCED + ERRORS) +  => N
 dudes_simSeeds <-
@@ -212,6 +244,8 @@ dudes_simSeeds <-
          })) |>
   select(-projPtsErrors,-points) |>
   bind_rows(dudes_simSeeds)
+
+cli::cli_progress_update()
 
 # DENSITY (PROJ SOURCE*BALANCED + ERRORS) => N
 dudes_simSeeds <-
@@ -272,6 +306,8 @@ dudes_simSeeds <-
   select(-projPtsErrors,-points) |>
   bind_rows(dudes_simSeeds)
 
+cli::cli_progress_update()
+
 # MONTECARLO (CURRENT SEASON PERF) => N
 dudes_simSeeds <- 1:WEEK |>
   map_df(\(.WEEK, .SEASON, .points) {
@@ -285,6 +321,8 @@ dudes_simSeeds <- 1:WEEK |>
       mutate(season = .SEASON, week = .WEEK)
   }, .SEASON = SEASON, .points = points) |>
   bind_rows(dudes_simSeeds)
+
+cli::cli_progress_update()
 
 # SAMPLING FROM DENSITY(CURRENT SEASON PERF) => N
 dudes_simSeeds <- 1:WEEK |>
@@ -306,6 +344,8 @@ dudes_simSeeds <- 1:WEEK |>
       mutate(season = .SEASON, week = .WEEK)
   }, .SEASON = SEASON, .points = points) |>
   bind_rows(dudes_simSeeds)
+
+cli::cli_progress_update()
 
 # MIX DENSITY PROJ_SOURCE_W_ERRORS + CURRENT_PERFORMANCE
 dudes_simSeeds <-
@@ -339,18 +379,87 @@ dudes_simSeeds <-
   bind_rows(dudes_simSeeds) |>
   arrange(season, week, id, playerId, pos, simType)
 
+cli::cli_progress_done()
 
-library(dm)
-simDB <- 
-  dudes_simSeeds |> 
-  dm(dudes_simSeeds) |> 
+dudes_simSeeds <- dudes_simSeeds |> 
+  anti_join(bye_week, by = join_by(season, week, id, playerId))
+
+# SAVE DATABASE ####
+simDB <-  dm(dudes_simSeeds) |> 
   dm_add_pk(dudes_simSeeds, c(season, week, id, playerId, pos, simType))
 
-saveRDS(simDB, "./data/dudes_simulation.rds")
+updateDB(simDB, "./data/dudes_simulation.rds")
 
-splot <- dudes_simSeeds |>
-  filter(id == "13593") |>
-  filter(week == 7) |> 
+# TEST & DRAFTS ####
+oneValueSimType <-
+  c("NFL",
+    "proj_table_average",
+    "proj_table_robust",
+    "proj_table_weighted")
+
+dudes_players_simulations <- dudes_simSeeds |> 
+  filter( ! simType %in% oneValueSimType ) |> 
+  mutate( simulation = map(seeds, sample, size=1000, replace=T, .progress="Resampling Seeds") ) |> 
+  mutate( summ = map(seeds, \(.seeds){
+    .seeds |> 
+      quantile(c(0.05,.25,.50,.75,.95)) |> 
+      enframe() 
+  }, .progress="Summarising Data") )
+
+
+dudes_players_simulations |>
+  unnest( summ ) |> 
+  pivot_wider(id_cols=c(season, week, id, playerId, pos, simType),
+              names_from = name, 
+              values_from = value) |> 
+  inner_join(stt$nfl_players_points, by = join_by(season, week, playerId)) |> 
+  ggplot(aes(x=`75%`, y=pts, color=simType))+
+  geom_point(alpha=.3) +
+  stat_smooth(method = "lm", se=F) +
+  theme_light()
+
+library(ggridges)
+
+dudes_players_simulations |> 
+  filter(id == "13593", week==11, season==SEASON) |> 
+  inner_join(stt$nfl_players_points, by = join_by(season, week, playerId)) |> 
+  unnest(summ) |>
+  filter( name=="50%" ) |> 
+  mutate(simType = fct_reorder(simType, value)) |> 
+  select(simType, simulation, value, pts) |> 
+  unnest(simulation) |> 
+  ggplot(aes(x=simulation, y=simType, fill=simType)) +
+  geom_density_ridges(scale = 2,
+                      color = "white",
+                      alpha = .7) +  
+  geom_vline(xintercept = 0, color="grey", linetype="dashed") +
+  geom_hline(aes(yintercept=simType, color=simType),alpha=.3) +
+  geom_point(aes(x=value, y=simType), shape=24, color="red", fill="red", show.legend = F, alpha=.5) +
+  geom_point(aes(x=pts, y=simType), shape=24, color="black", fill="black", show.legend = F, alpha=.5) +
+  theme_light()
+  
+
+
+
+
+ggplot(aes(
+  x = pts.proj,
+  y = reorder(full_name,-display.order),
+  fill = pos
+)) +
+
+  geom_point(aes(x=weekPts), shape=24, color="red", fill="red", show.legend = F, alpha=.8) +
+  geom_hline(aes(yintercept=reorder(full_name,-display.order), color=pos),alpha=.3) +
+  theme_light() +
+  xlab("Fantasy Points") +
+  ylab("") +
+  theme(legend.position = "bottom") 
+
+  
+stt$nfl_players_points |> 
+  inner_join(id_map, join_by(playerId)) |> 
+  filter(id == "13593", week==WEEK, season==SEASON)
+  
   unnest(seeds) |> 
   ggplot(aes(x=seeds, fill=simType)) +
   geom_density(alpha=.5) +
