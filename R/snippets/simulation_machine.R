@@ -12,7 +12,6 @@ ffa <- readRDS("./data/ffa_db.rds") # projecoes
 stt <- readRDS("./data/nfl_stats_db.rds") # pontuacao
 ply <- readRDS("./data/nfl_players_db.rds") # players info
 
-
 # id-map
 id_map <- ffa$ffa_player_ids |>
   transmute(id, playerId = as.integer(nfl_id))
@@ -381,25 +380,11 @@ dudes_simSeeds <-
 
 cli::cli_progress_done()
 
+# REMOVE BYE WEEK SEEDS 
 dudes_players_seeds <- dudes_simSeeds |>
   anti_join(bye_week, by = join_by(season, week, id, playerId))
-  # mutate(seedStats = map(seeds, \(.x) {
-  #   if (length(.x) < 2)
-  #     return(NULL)
-  #   if (length(unique(.x)) <= 2)
-  #     return(NULL)
-  #   return(broom::tidy(t.test(.x)))
-  # },
-  # .progress = T))
 
-
-# SAVE DATABASE ####
-simDB <-  dm(dudes_simSeeds) |> 
-  dm_add_pk(dudes_simSeeds, c(season, week, id, playerId, pos, simType))
-
-updateDB(simDB, "./data/dudes_simulation.rds")
-
-# TEST & DRAFTS ####
+# perform simulations
 oneValueSimType <-
   c("NFL",
     "proj_table_average",
@@ -409,228 +394,20 @@ oneValueSimType <-
 dudes_players_simulations <- dudes_players_seeds |> 
   filter( ! simType %in% oneValueSimType ) |> 
   mutate( simulation = map(seeds, sample, size=1000, replace=T, .progress="Resampling Seeds") ) |> 
-  mutate( summ = map(seeds, \(.seeds){
+  mutate( simQuantiles = map(seeds, \(.seeds){
     .seeds |> 
-      quantile(c(0.05,.25,.30,.50,.7,.75,.95)) |> 
+      quantile(c(0.05,.15,.30,.50,.7,.85,.95)) |> 
       enframe() 
-  }, .progress="Summarising Data") )
+  }, .progress="Summarising Data") ) |> 
+  select(-seeds)
 
 
-dudes_players_simulations
+# SAVE DATABASE ####
+simDB <-  dm(dudes_players_seeds, dudes_players_simulations) |> 
+  dm_add_pk(dudes_players_seeds, c(season, week, id, playerId, pos, simType)) |> 
+  dm_add_pk(dudes_players_simulations, c(season, week, id, playerId, pos, simType))
 
-nfl_round_db <- readRDS("./data/nfl_round_db.rds")
-stt$nfl_players_points
-ply$nfl_players
+dm_draw(simDB, view_type = "all", column_types = T)
 
-roster_sim <- nfl_round_db$nfl_teams_rosters |> 
-  filter(timestamp==max(timestamp), .by = c(season, week, teamId)) |> 
-  filter(teamId==4, season==2023, week==11) |> 
-  inner_join(dudes_players_simulations,by = join_by(season, week, playerId)) |> 
-  select(-tag, -timestamp, -slotPosition, -isEditable, -isReserveStatus) |> 
-  filter(simType=="proj_src_errors_density") 
-
-roster_pts <- nfl_round_db$nfl_teams_rosters |> 
-  filter(timestamp==max(timestamp), .by = c(season, week, teamId)) |> 
-  select(season, week, teamId, rosterSlotId, playerId) |> 
-  left_join(stt$nfl_players_points,by = join_by(season, week, playerId)) |> 
-  mutate( pts = if_else(is.na(pts), 0, pts)) |> 
-  left_join(select(ply$nfl_players, playerId, name, position), by = join_by(playerId))
-
-best_pos <- roster_sim  |>
-  select(playerId1 = playerId) |>
-  expand_grid(playerId2 = playerId1) |>
-  inner_join(select(roster_sim, playerId1 = playerId, pos1 = pos),
-             by = join_by(playerId1)) |>
-  inner_join(select(roster_sim, playerId2 = playerId, pos2 = pos),
-             by = join_by(playerId2)) |>
-  filter(pos1 == pos2, playerId1 < playerId2) |>
-  mutate(best = map2_int(playerId1, playerId2,
-                        function(id1, id2, sim) {
-                          s1 <- sim |> filter(playerId == id1) |> pull(simulation)
-                          s2 <-
-                            sim |> filter(playerId == id2) |> pull(simulation)
-                          if (mean(s1[[1]] > s2[[1]]) > .5) {
-                            return(id1)
-                          } else {
-                            return(id2)
-                          }
-                        }, sim = roster_sim)) |>
-  count(pos1, best, sort = T) |> 
-  set_names(c("pos", "playerId", "rank"))
-
-roster_remaing <- roster_sim |> 
-  anti_join(best_pos, by = join_by(playerId, pos)) |> 
-  filter(rosterSlotId < 20) |> 
-  transmute(pos, playerId, rank=1)
-
-best_roster <- best_pos |> 
-  bind_rows(roster_remaing) |> 
-  arrange(desc(rank)) |> 
-  left_join( filter(stt$nfl_players_points, season==2023, week==11), by = join_by(playerId) )
-
-best_roster
-
-best_roster[c(1:6,8,10,11),]$pts |> sum(na.rm = T)
-
-tibble(
-  pos = c("QB", "WR", "RB", "TE", "K", "DST"),
-  
-)
-
-
-best_pos
-  
-split(best_pos, 1:nrow(best_pos))
-
-
-
-nfl_round_db$nfl_teams_round
-
-nfl_teams_db <- readRDS("./data/nfl_teams_db.rds")
-nfl_teams_db$nfl_teams
-
-dudes_players_simulations |> 
-  inner_join(```)
-
-
-
-
-
-dudes_players_simulations |>
-  unnest( summ ) |> 
-  pivot_wider(id_cols=c(season, week, id, playerId, pos, simType),
-              names_from = name, 
-              values_from = value) |> 
-  inner_join(stt$nfl_players_points, by = join_by(season, week, playerId)) |> 
-  ggplot(aes(x=`75%`, y=pts, color=simType))+
-  geom_point(alpha=.3) +
-  stat_smooth(method = "lm", se=F) +
-  theme_light()
-dudes_players_simulations |> 
-
-library(ggridges)
-
-  filter(id == "14136", week==10, season==SEASON) |> 
-  inner_join(stt$nfl_players_points, by = join_by(season, week, playerId)) |> 
-  unnest(summ) |>
-  filter( name=="50%" ) |> 
-  mutate(simType = fct_reorder(simType, value)) |> 
-  select(simType, simulation, value, pts) |> 
-  unnest(simulation) |> 
-  ggplot(aes(x=simulation, y=simType, fill=simType)) +
-  geom_density_ridges(scale = 2,
-                      color = "white",
-                      alpha = .7) +  
-  geom_vline(xintercept = 0, color="grey", linetype="dashed") +
-  geom_hline(aes(yintercept=simType, color=simType),alpha=.3) +
-  geom_point(aes(x=value, y=simType), shape=24, color="red", fill="red", show.legend = F, alpha=.5) +
-  geom_point(aes(x=pts, y=simType), shape=24, color="black", fill="black", show.legend = F, alpha=.5) +
-  theme_light()
-  
-
-fit_models <- dudes_players_simulations |> 
-  inner_join(stt$nfl_players_points, by = join_by(season, week, playerId)) |> 
-  select(-seeds, -simulation) |> 
-  unnest(summ) |> 
-  filter(name=="50%") |> 
-  nest(data=c(value, pts), .by=c(simType)) |> 
-  mutate( lm = map(data, \(.x) lm(pts~value, .x), .progress=T)) |> 
-  mutate( stats = map(lm, broom::augment, .progress=T) ) |> 
-  unnest( stats )
-
-
-dudes_players_simulations |> 
-  inner_join(stt$nfl_players_points, by = join_by(season, week, playerId)) |> 
-  select(-seeds, -simulation) |> 
-  unnest(summ) |> 
-  filter( name %in% c("30%", "70%")) |> 
-  mutate( name = str_c("p", str_remove(name, "%"))) |> 
-  pivot_wider(
-    id_cols=c(season, week, id, playerId, pos, simType, pts),
-    names_from = name, 
-    values_from = value) |> 
-  group_by(simType) |> 
-  summarise( in_range=mean(pts>=p30 & pts<=p70) ) |> 
-  arrange(desc(in_range))
-
-
-
-fit_models |> 
-
-tibble(
-  pred = fit_models[1,]$lm[[1]]$fitted.values,
-  real = fit_models[1,]$lm[[1]]$model$pts
-) |> 
-  yardstick::rmse(truth=real, estimate=pred)
-
-sqrt(mean(fit_models[1,]$lm[[1]]$residuals^2))
-
-fit_models[1,]$lm[[1]] |> 
-  broom::augment()
-
-
-
-2^2
-
-?yardstick::rmse()
-  
-  
-  
-fit_models |> 
-  ggplot(aes(x=p.value, y=r.squared, color=simType)) +
-  geom_point(alpha=.5) +
-  theme_minimal()
-
-
-ggplot(aes(
-  x = pts.proj,
-  y = reorder(full_name,-display.order),
-  fill = pos
-)) +
-
-  geom_point(aes(x=weekPts), shape=24, color="red", fill="red", show.legend = F, alpha=.8) +
-  geom_hline(aes(yintercept=reorder(full_name,-display.order), color=pos),alpha=.3) +
-  theme_light() +
-  xlab("Fantasy Points") +
-  ylab("") +
-  theme(legend.position = "bottom") 
-
-  
-stt$nfl_players_points |> 
-  inner_join(id_map, join_by(playerId)) |> 
-  filter(id == "13593", week==WEEK, season==SEASON)
-  
-  unnest(seeds) |> 
-  ggplot(aes(x=seeds, fill=simType)) +
-  geom_density(alpha=.5) +
-  ggplot2::scale_fill_brewer(type = "qual") +
-  theme_light()
-
-plotly::ggplotly(splot)
-
-
-library(tidyverse)
-
-proj <- list(
-  runif(100, 0,10),
-  runif(100, 3, 8),
-  runif(100, 5,9)
-)
-
-tibble(
-  id1 = 1:3
-) |> 
-  expand(id1=id1, id2 = id1) |> 
-  filter(id1<id2) |> 
-  mutate( win = map2_int(id1, id2, \(i1,i2,prj){
-    if(mean(pluck(prj, i1))>mean(pluck(prj, i2))){
-      return(i1)
-    } else {
-      return(i2)
-    }
-  }, prj = proj)) |> 
-  count(win, sort=T)
-
-
-
+updateDB(simDB, "./data/dudes_simulation_db.rds")
 
