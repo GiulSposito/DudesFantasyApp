@@ -181,7 +181,7 @@ config <- yaml::read_yaml("./config/config.yml")
 .week <- 11L
 .leagueId <- config$leagueId
 .scoreRules <- yaml::read_yaml("./config/score_settings.yml")
-.tag <- "posTNF"
+.tag <- "preMNF"
 
 # update ffa_db ####
 source("./R/api/ffa_projection.R")
