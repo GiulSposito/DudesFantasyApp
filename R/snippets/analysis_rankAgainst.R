@@ -2,23 +2,40 @@ library(tidyverse)
 library(dm)
 
 # estudar se o rank Aggainst tem influcencia na pontuacao
+stt <- readRDS("./data/nfl_stats_db.rds")
+ffa <- readRDS("./data/ffa_db.rds")
+
+proj_table <- ffa$ffa_player_ids |> 
+  transmute( id, playerId = as.integer(nfl_id)) |> 
+  inner_join( ffa$ffa_projtable, by = join_by(id) )
 
 # existe essa info antes do jogo
-rank <- 1:7 |> 
+rank <- 1:11 |> 
   map(~glue::glue("../DudesFantasyFootball/data/rankAgainstPosition_week{.x}.rds")) |> 
   map_df(readRDS)
 
+stt$nfl_players_points |> 
+  inner_join(rank, by = join_by(playerId, week)) |> 
+  inner_join(proj_table, by = join_by(playerId, season, week)) |> 
+  mutate( spread = points-pts,
+          spread_pct = spread/pts ) |> 
+  ggplot(aes(x=rankAgainstPosition, y=spread_pct)) +
+  geom_point(alpha=.5) +
+  stat_smooth(method = "lm") +
+  theme_light()
+  
+
 
 # proj
-proj_points <- ffa_db$ffa_projtable |> 
+proj_points <- ffa$ffa_projtable |> 
   filter(week < 7, tag=="final", avg_type=="average") |> 
   select(season, week, id, pos, points, sd_pts, uncertainty) |> 
-  inner_join(transmute(ffa_db$ffa_player_ids, id, playerId=as.integer(nfl_id)), by = join_by(id)) |> 
+  inner_join(transmute(ffa$ffa_player_ids, id, playerId=as.integer(nfl_id)), by = join_by(id)) |> 
   select(season, week, id, playerId, pos, everything()) |> 
   rename(projPts = points, projPtsSD = sd_pts)
 
 # pontos realizados
-points <- nfl_stats_db$nfl_players_points |> 
+points <- stt$nfl_players_points |> 
   filter(week!=0, week<7)
 
 

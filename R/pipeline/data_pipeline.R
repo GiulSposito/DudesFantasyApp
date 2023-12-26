@@ -84,7 +84,7 @@ getFantasyStatistics <- function(leagueId, authToken, season, week){
   statsDict <- nfl_gameStats() |> 
     nfl_extractStatDict()
   
-  players_stats_resp <- nfl_players_stats(authToken, leagueId, season, 1:week)
+  players_stats_resp <- nfl_players_stats(authToken, leagueId, season, week)
   
   nfl_stats_db <- players_stats_resp |> 
     nfl_extractPlayersStats(statsDict)
@@ -178,10 +178,10 @@ saveTempResp <- function(obj, name, season, week, tag="NA", timestamp=now()){
 # MASTER PARAMETERS ####
 config <- yaml::read_yaml("./config/config.yml")
 .season <- 2023L
-.week <- 11L
+.week <- 17L
 .leagueId <- config$leagueId
 .scoreRules <- yaml::read_yaml("./config/score_settings.yml")
-.tag <- "preMNF"
+.tag <- "preWaivers"
 
 # update ffa_db ####
 source("./R/api/ffa_projection.R")
@@ -204,7 +204,7 @@ dm_draw(nfl_players_db, view_type = "all", column_types = T, rankdir = "RL")
 # STATISTICS ####
 source("./R/api/nfl_game.R")
 source("./R/api/nfl_players.R")
-nfl_stats_db <- getFantasyStatistics(config$leagueId, config$authToken, .season, .week)
+nfl_stats_db <- getFantasyStatistics(config$leagueId, config$authToken, .season, 1:.week)
 nfl_stats_db <- updateDB(nfl_stats_db, "./data/nfl_stats_db.rds")
 dm_draw(nfl_stats_db, view_type = "all", column_types = T, rankdir = "RL")
 
@@ -221,7 +221,7 @@ nfl_recap_df <-
   getFantasyRecap(
     config$authToken,
     config$leagueId,
-    10,
+    .week,
     readRDS("./data/nfl_teams_db.rds")$nfl_teams$teamId
   )
 nfl_recap_db <- nfl_convertRecapDB(nfl_recap_df)

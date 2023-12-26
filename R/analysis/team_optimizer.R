@@ -5,6 +5,7 @@ rnd <- readRDS("./data/nfl_round_db.rds") # composicao dos times
 stt <- readRDS("./data/nfl_stats_db.rds") # pontuacao
 ply <- readRDS("./data/nfl_players_db.rds") # players info
 sim <- readRDS("./data/dudes_simulation_db.rds") # simulation data
+ffa <- readRDS()
 
 # Fixed slots especification
 SLOTS <- tibble(
@@ -29,6 +30,23 @@ selectPlayers <- function(playerSet, slots=SLOTS){
   return(bind_rows(fixedSlots, flexSlot))
 }
 
+# aux funciont to select best player by rnk & score
+selectBestPlayers <- function(playerSet, slots=SLOTS){
+  fixedSlots <- split(slots, 1:nrow(slots)) |> 
+    map_df(function(slot, p_set){
+      p_set |> 
+        filter( pos==slot$pos ) |> 
+        slice_max(pts, n=slot$n)
+    }, p_set=playerSet)
+  
+  flexSlot <- playerSet |> 
+    anti_join(fixedSlots, by=join_by(playerId)) |> 
+    filter(pos%in%c("WR", "RB")) |> 
+    slice_max(pts, n=1)
+  
+  return(bind_rows(fixedSlots, flexSlot))
+}
+
 # player pos
 player_pos <- ply$nfl_players |> 
   select(playerId, pos=position)
@@ -47,6 +65,18 @@ rosters_perf <- rosters |>
 team_perf <- rosters_perf |> 
   filter(rosterSlotId<20) |> 
   summarise(totalPts=sum(pts, na.rm=T), .by=c(season, week, teamId))
+
+bestRoster <- rosters_perf |> 
+  mutate( pts = if_else(is.na(pts), 0, pts)) |> 
+  left_join(player_pos, by = join_by(playerId)) |> 
+  nest( playersSet = c(playerId, pos, pts), .by=c(season, week, teamId) ) |> 
+  mutate( bestRoster = map(playersSet, selectBestPlayers, .progress="Selecting Best Players") )
+
+team_potencial <- bestRoster |> 
+  select(-playersSet) |> 
+  unnest(bestRoster) |> 
+  summarise(potencialPts = sum(pts, na.rm = T), .by=c(season, week, teamId))
+  
 
 # select best starters
 bestStarters <- rosters |> 
@@ -93,18 +123,33 @@ projTeamScore |>
 
 projTeamScore |> 
   inner_join(team_perf, by = join_by(season, week, teamId)) |> 
-  filter(teamId==7) |> 
-  pivot_longer(cols = starts_with("total")) |> 
+  inner_join(team_potencial, by = join_by(season, week, teamId)) |> 
+  filter(teamId==3) |> 
+  pivot_longer(cols = c(starts_with("total"), potencialPts)) |> 
   ggplot(aes(x=week, y=value, linetype=name, color=simType)) +
   geom_line() +
   facet_wrap(simType~.)  +
   theme_minimal()
+
+
+projTeamScore |> 
+  inner_join(team_perf, by = join_by(season, week, teamId)) |> 
+  inner_join(team_potencial, by = join_by(season, week, teamId)) |> 
+  mutate(modelGain=totalProjPts-totalPts) |> 
+  filter(teamId==3) |> 
+  ggplot(aes(x=week, y=modelGain, color=simType, fill=simType)) +
+  geom_point(size=2) +
+  geom_bar(stat="identity", position="dodge", width=.2) +
+  facet_wrap(simType~.)  +
+  theme_minimal()
+
 
 projTeamScore |> 
   inner_join(team_perf, by = join_by(season, week, teamId)) |> 
   ggplot(aes(totalPts, totalProjPts, color=simType)) +
   geom_point(alpha=.5) +
   stat_smooth(se=F, method="lm") +
+
   theme_minimal()
 
 
