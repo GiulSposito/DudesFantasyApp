@@ -4,9 +4,8 @@ library(glue)
 library(ffanalytics)
 library(lubridate)
 
-# update projections
-getFFAProjections <- function(.season, .week, .tag, .scoreRules){
-  
+
+getFFAScrapeData <- function(.season, .week, .tag) {
   # scrape the web
   ffa_scrape_db <- scrapeWebData(.season, .week, .tag)
   
@@ -15,25 +14,31 @@ getFFAProjections <- function(.season, .week, .tag, .scoreRules){
     glue(
       "./data/temp/ffa_scrape_db_s{.season}w{.weeknumber}_{.tag}_{.timestamp}.rds",
       .weeknumber = formatC(.week, width = 2, flag = "0"),
-      .timestamp = ffa_scrape_db$ffa_scrape[1,]$timestamp
+      .timestamp = format(ffa_scrape_db$ffa_scrape[1,]$timestamp, "%Y%m%d%H%M%S")
     )
-
+  
   # save scrape 
   saveRDS(ffa_scrape_db, temp_filename)
-    
+  
+  return(ffa_scrap_db)
+}
+
+# update projections
+getFFAProjections <- function(.ffa_scrape_db, .season, .week, .tag, .scoreRules){
+  
   # calculates the projection
-  ffa_db <- calcProjections(ffa_scrape_db, .scoreRules)
+  ffa_db <- calcProjections(.ffa_scrape_db, .scoreRules)
 
   # cache ffa_db
   temp_filename <-
     glue(
       "./data/temp/ffa_db_s{.season}w{.weeknumber}_{.tag}_{.timestamp}.rds",
       .weeknumber = formatC(.week, width = 2, flag = "0"),
-      .timestamp = ffa_scrape_db$ffa_scrape[1,]$timestamp
+      .timestamp = format(ffa_scrape_db$ffa_scrape[1,]$timestamp, "%Y%m%d%H%M%S")
     )
   
   # save scrape 
-  saveRDS(ffa_scrape_db, temp_filename)
+  saveRDS(ffa_db, temp_filename)
   
   # return value
   return(ffa_db)
@@ -177,15 +182,16 @@ saveTempResp <- function(obj, name, season, week, tag="NA", timestamp=now()){
 
 # MASTER PARAMETERS ####
 config <- yaml::read_yaml("./config/config.yml")
-.season <- 2023L
-.week <- 17L
+.season <- 2024L
+.week <- 4L
 .leagueId <- config$leagueId
 .scoreRules <- yaml::read_yaml("./config/score_settings.yml")
 .tag <- "preWaivers"
 
 # update ffa_db ####
 source("./R/api/ffa_projection.R")
-ffa_db <- getFFAProjections(.season, .week, .tag, .scoreRules)
+ffa_scrape_db <- getFFAScrapeData(.season, .week, .tag)
+ffa_db <- getFFAProjections(ffa_scrape_db, .season, .week, .tag, .scoreRules)
 ffa_db <- updateDB(ffa_db, "./data/ffa_db.rds")
 dm_draw(ffa_db,view_type = "all", column_types = T, rankdir = "RL")
 

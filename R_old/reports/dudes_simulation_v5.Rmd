@@ -1,0 +1,369 @@
+---
+title: "Dudes Football League - Simulation"
+output: 
+  flexdashboard::flex_dashboard:
+    orientation: rows
+    vertical_layout: fill
+params:
+  week: 2
+  prefix: "preMNF"
+---
+
+```{r setup, include=FALSE}
+
+# put rnotbook in the same workdir
+knitr::opts_knit$set(root.dir = normalizePath(rprojroot::find_rstudio_root_file())) 
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE)
+
+```
+
+
+```{r libs}
+library(flexdashboard)
+library(tidyverse)
+#library(formattable)
+#library(ggrepel)
+library(glue)
+library(broom)
+library(ggridges)
+
+.week <- params$week
+.prefix <- params$prefix
+
+# fixed positions for charts
+slotLevels <- gl(8,1,labels=c("QB","RB","WR","TE","W/R","K","DEF","BN", "RES", "??"))
+posLevels <- gl(6,1,labels=c("QB","RB","WR","TE","K","DEF"))
+
+# map to roster position
+rosterSlots <- tibble(
+  rosterSlotId = c(1:5,7,8,20,21),
+  rosterSlot   = c("QB","RB","WR","TE","W/R","K","DEF","BN","RES")
+)
+
+# recover simulation data
+sim <- readRDS(glue("./data/simulation_v5_week{.week}_{.prefix}.rds")) 
+
+# sim.summary <- tibble(
+#   team.id   = c(sim$home.id,   sim$away.id),
+#   team.name = c(sim$home.name,     sim$away.name),
+#   pts.summ  = c(sim$home.points,   sim$away.points),
+#   points    = c(sim$home.sim,      sim$away.sim),
+#   win.pc    = c(sim$home.win.prob, sim$away.win.prob),
+#   roster    = c(sim$home.roster, sim$away.roster)
+# ) 
+
+# game summary in long form
+sim_summary <- bind_rows(
+    select(sim$matchup_sim, teamId=awayTeam.teamId, winProb=awayTeam.winProb, sim.pts=awayTeam.simulation),
+    select(sim$matchup_sim, teamId=homeTeam.teamId, winProb=homeTeam.winProb, sim.pts=homeTeam.simulation)
+  ) %>% inner_join(select(sim$teams, -rosters), by="teamId")
+
+# obtem nome e pontuacao dos times
+team_points <- sim$teams %>% 
+  unnest(week.stats) %>% 
+  filter(week==.week) %>% 
+  select(teamId, name, pts, imageUrl)
+
+games_summary <- sim$matchup_sim %>% 
+  inner_join(set_names(team_points, paste0("away.",names(team_points))), by=c("awayTeam.teamId"="away.teamId")) %>% 
+  inner_join(set_names(team_points, paste0("home.",names(team_points))), by=c("homeTeam.teamId"="home.teamId")) %>% 
+  mutate(game=paste0(away.name, " @ ", home.name)) %>%
+  select(game, homeTeam.ptsdiff, homeTeam.ptsdiff.org, home.pts, away.pts,
+         home.teamId=homeTeam.teamId, away.teamId=awayTeam.teamId,
+         home.name,away.name, home.projPts=homeTeam.totalPts, away.projPts = awayTeam.totalPts) %>% 
+  mutate( away.nickname = gsub("([a-zA-Z\']+ )?", "", away.name),
+          home.nickname = gsub("([a-zA-Z\']+ )?", "", home.name)) %>% 
+  mutate( game.nickname = paste0(away.nickname, " @ ", home.nickname))
+
+# code to plot a gauge
+winGauge <- function(.teamId, .teamSummary) {
+  values <- .teamSummary %>%
+    filter(teamId == .teamId) %>%
+    mutate( winProb = round(100*winProb) ) %>%
+    select(name, winProb)
+  
+  gauge(value=values$winProb, min = 0, max = 100, symbol = '%', label = values$name,
+          gaugeSectors(success = c(61, 100), warning = c(40, 60), danger = c(0, 39)))
+}
+
+```
+
+Win Probability {data-navmenu="Overview"}
+=======================
+
+Row
+-------------------------------------
+
+### `r games_summary[1,]$game.nickname`
+```{r}
+winGauge(games_summary[1,]$away.teamId,sim_summary)
+winGauge(games_summary[1,]$home.teamId,sim_summary)
+
+# games_summary[1,] %>% 
+#   select(away.team=away.nickname, away.projPts, away.pts, home.pts, home.projPts, home.team=home.nickname) %>% 
+#   knitr::kable()
+
+```
+
+
+
+### `r games_summary[2,]$game.nickname`
+```{r}
+winGauge(games_summary[2,]$away.teamId,sim_summary)
+winGauge(games_summary[2,]$home.teamId,sim_summary)
+
+# games_summary[2,] %>% 
+#   select(away.team=away.nickname, away.projPts, away.pts, home.pts, home.projPts, home.team=home.nickname) %>% 
+#   knitr::kable()
+```
+
+Row
+-------------------------------------
+
+### `r games_summary[3,]$game.nickname`
+```{r}
+winGauge(games_summary[3,]$away.teamId,sim_summary)
+winGauge(games_summary[3,]$home.teamId,sim_summary)
+
+# games_summary[3,] %>% 
+#   select(away.team=away.nickname, away.projPts, away.pts, home.pts, home.projPts, home.team=home.nickname) %>% 
+#   knitr::kable()
+```
+
+### `r games_summary[4,]$game.nickname`
+```{r}
+winGauge(games_summary[4,]$away.teamId,sim_summary)
+winGauge(games_summary[4,]$home.teamId,sim_summary)
+
+# games_summary[4,] %>% 
+#   select(away.team=away.nickname, away.projPts, away.pts, home.pts, home.projPts, home.team=home.nickname) %>% 
+#   knitr::kable()
+```
+
+Row
+-------------------------------------
+
+### `r games_summary[5,]$game.nickname`
+```{r}
+winGauge(games_summary[5,]$away.teamId,sim_summary)
+winGauge(games_summary[5,]$home.teamId,sim_summary)
+```
+
+### `r games_summary[6,]$game.nickname`
+```{r}
+winGauge(games_summary[6,]$away.teamId,sim_summary)
+winGauge(games_summary[6,]$home.teamId,sim_summary)
+```
+
+Row
+-------------------------------------
+
+### `r games_summary[7,]$game.nickname`
+```{r}
+winGauge(games_summary[7,]$away.teamId,sim_summary)
+winGauge(games_summary[7,]$home.teamId,sim_summary)
+```
+
+
+Points Distribution {data-navmenu="Overview"}
+=======================================
+
+```{r teamPtsDist, fig.width=9}
+
+# sim_summary %>% 
+#   select(name, sim.pts) %>% 
+#   mutate(mean.pts = map_dbl(sim.pts, mean)) %>% 
+#   unnest(sim.pts) %>% 
+#   mutate(sim.pts = round(sim.pts,1)) %>%
+#   ggplot(aes(x=reorder(name,mean.pts), y=sim.pts, color=name)) +
+#   geom_boxplot() +
+#   coord_flip() +
+#   theme_minimal() +
+#   ggtitle("Simulated Points Distribution") +
+#   xlab( "fantasy team" ) +
+#   ylab( "simulation points" ) +
+#   theme( legend.position = "none" )
+
+
+sim_summary %>% 
+  select(name, sim.pts) %>% 
+  mutate(mean.pts = map_dbl(sim.pts, mean)) %>% 
+  unnest(sim.pts) %>% 
+  mutate(sim.pts = round(sim.pts,1)) %>%
+  ggplot(aes(y=reorder(name,mean.pts), x=sim.pts, fill=name)) +
+  stat_density_ridges(quantile_lines = TRUE, quantiles = c(0.1,0.5,0.9), scale=1, alpha=.6) +
+  theme_ridges() +
+  theme( legend.position = "none" ) +
+  labs(x="points",y="")
+
+  # coord_flip() +
+  # theme_minimal() +
+  # ggtitle("Simulated Points Distribution") +
+  # xlab( "fantasy team" ) +
+  # ylab( "simulation points" ) +
+  # theme( legend.position = "none" )
+  # 
+  # 
+  # ggplot(aes(x=sim, y=name, fill=name)) +
+  # stat_density_ridges(quantile_lines = TRUE, quantiles = c(0.1,0.5,0.9), scale=1, alpha=.6) +
+  # geom_point(aes(x=pts, y=name), color="black", fill="red", shape=24) +
+  # theme_ridges() +
+  # theme( legend.position = "none" ) +
+  # scale_y_discrete(expand=c(0.,0)) +
+  # scale_x_continuous(expand = c(0.01,0)) +
+
+
+
+```
+
+Score Difference {data-navmenu="Overview"}
+============================================
+
+```{r matchupScoreDiffDist, fig.width=9}
+games_summary %>%
+  mutate(current.score.diff = home.pts-away.pts) %>% 
+  unnest(c(homeTeam.ptsdiff, homeTeam.ptsdiff.org)) %>% 
+  ggplot(aes(fill=game)) +
+  geom_density(aes(homeTeam.ptsdiff.org), fill="grey", color=NA, alpha=.4) +
+  geom_density(aes(homeTeam.ptsdiff), alpha=.6) +
+  geom_vline(aes(xintercept=0), linetype=1, color="black", alpha=.5) +
+  # geom_vline(aes(xintercept=current.score.diff),
+  #            linetype=2, color="red") +
+  facet_grid(rows=vars(game), switch = "x", scales="free") +
+  theme_minimal() +
+  ggtitle("Matchups Score Difference") +
+  ylab("Probability Distribution") +
+  xlab("Score Difference") +
+  theme( legend.position = "none", strip.text.y = element_text(angle=0) )
+
+```
+
+```{r rosterComparation}
+
+## preparacao dos dados dos rosters
+
+# junta os rosters dos times, estatíticas dos jogadores, a tabela de projecao e
+# uma de-para de apreviacao do Injury Status
+rosters <- sim$teams %>% 
+  # unnest do roster por time
+  select(teamId, teamName=name, rosters) %>% 
+  unnest(rosters) %>%                                                         # 210 players
+  # mapeamento ffa<->nfl
+  inner_join(select(sim$players_id, id, playerId=nfl_id), by="playerId") %>%  # 210 players
+  # statisticas dos jogadores
+  inner_join(sim$players_stats, by="playerId") %>%                            # 210 players]
+  # estatisticas podem ter mais de uma semana
+  unnest(weekPts) %>%
+  group_by(id, position) %>% 
+  mutate( avgPts = mean(weekPts, na.rm=T) ) %>% 
+  ungroup() %>% 
+  filter(week == .week) %>% 
+  # mapeamento da posicao do slot no roster
+  left_join(rosterSlots, by="rosterSlotId") %>% 
+  # adiciona abreviatura do injury game status
+  left_join(readRDS("./data/injuryGameStatusAbbr.rds"), by = "injuryGameStatus") %>% 
+  mutate( 
+    full_name = case_when(
+      !is.na(injuryGameStatus) ~ paste0(name, " (", injuryAbbr, ")"),
+      is.na(injuryGameStatus) ~ name
+    ),
+    full_name = paste0(full_name, " [", rosterSlot ,"]")
+  ) %>% 
+  # campos de interesse
+  select(week, id, playerId, full_name, teamId, teamName, name, pos=position, nflTeamAbbr, rosterSlot, 
+         injuryGameStatus, isEditable, isReserveStatus=isReserveStatus.x, isUndroppable, 
+         byeWeek, weekPts, avgPts, weekSeasonPts, rankAgainstPosition)
+
+dudes_projections <- readRDS("./data/points_projection_and_errors.rds") %>% 
+  mutate( pos = if_else(pos=="DST", "DEF", pos) ) %>% 
+  inner_join(rosters, by = c("week", "id", "pos")) %>% 
+  filter(week==.week, byeWeek!=.week) %>%
+  select(season, week,id, name, full_name, pos, nflTeamAbbr, rankAgainstPosition, 
+         teamId, teamName, byeWeek, injuryGameStatus, data_src, pts.proj, rosterSlot, isEditable, weekPts) %>% 
+  mutate(adj_factor = case_when(
+    is.na(injuryGameStatus) ~ 1,
+    injuryGameStatus == "Questionable" ~ .5,
+    injuryGameStatus == "Doubtful" ~ .25,
+    T ~ 0
+  )) %>% 
+  mutate(pts.proj = pts.proj * adj_factor) %>% 
+  nest(proj = c(data_src, pts.proj)) %>% 
+  mutate( dudes.proj = map_dbl(proj, ~median(.x$pts.proj, na.rm = T)) ) %>% 
+  mutate( pts.sim = map(proj, function(.dt,.n){
+    
+    if(all(.dt$pts.proj == 0)) return(0)
+    
+    if (all(.dt$pts.proj == .dt$pts.proj[1]))
+      return(sample(.dt$pts.proj, .n, T))
+    
+    pdfden <- .dt %>%
+      pull(pts.proj) %>%
+      ecdf() %>%
+      knots() %>%
+      density(from = -10, to = 100)
+    
+    approx(cumsum(pdfden$y) / sum(pdfden$y),
+           pdfden$x, runif(.n))$y %>%
+      return()
+    
+  }, .n=1000) )
+
+
+## plot do grafico do roster
+plotRoster <- function(.teamId, .rosterData) {
+  
+  plotData <- .rosterData %>%
+    filter(teamId == .teamId,
+           rosterSlot != "RES") %>%
+    mutate(
+      # fixa posicao e slot como fatores fixo para melhorar o gráfico
+      pos = factor(pos, levels = posLevels),
+      rosterSlot = factor(rosterSlot, levels = slotLevels)
+    ) %>%
+    # decide se em pontos deixa vazio (ainda nao jogou) ou coloca week points (já jogou)
+    mutate(points = case_when(isEditable ~ as.numeric(NA),!isEditable ~ weekPts)) %>%
+    arrange(rosterSlot, pos) %>%
+    mutate(display.order = 1:nrow(.))
+  
+  plotData %>%
+    unnest(proj) %>%
+    ggplot(aes(
+      x = pts.proj,
+      y = reorder(full_name,-display.order),
+      fill = pos
+    )) +
+    geom_density_ridges(scale = 2,
+                        color = "white",
+                        alpha = .7) +
+    geom_vline(xintercept = 0, color="grey", lt="dashed") +
+    geom_point(aes(x=weekPts), shape=24, color="red", fill="red", show.legend = F, alpha=.8) +
+    geom_hline(aes(yintercept=reorder(full_name,-display.order), color=pos),alpha=.3) +
+    theme_light() +
+    xlab("Fantasy Points") +
+    ylab("") +
+    theme(legend.position = "bottom") 
+}
+
+
+```
+
+```{r rosterComparationMenu, results="asis"}
+
+for(i in 1:nrow(games_summary)){
+  matchup <- games_summary[i,]
+
+  cat(paste0("\n",matchup$game.nickname," {data-navmenu=\"Roster Comparation\"  data-orientation=columns}\n"))
+  cat("============================================\n")
+  
+  cat("\nColumn\n--------------------------------------------\n")
+  cat(paste0("\n### ", matchup$away.name), "\n\n")
+  print(plotRoster(matchup$away.teamId, dudes_projections))
+  cat("\n")
+  
+  cat("\nColumn\n--------------------------------------------\n")
+  cat(paste0("\n### ", matchup$home.name), "\n\n")
+  print(plotRoster(matchup$home.teamId, dudes_projections))
+  cat("\n")
+}
+
+```

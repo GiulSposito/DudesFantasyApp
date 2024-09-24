@@ -1,0 +1,69 @@
+
+# Fase 1 - Web Scrapping
+
+  a. usa ffanalytics para fazer o web_scrap do sites em geral
+  b. usa um custom code para scrapear a ESPN e incorpora ao web scrapping
+  
+  output: 
+  
+    # todas as semanas
+    accumulateWeeklyScrape(week, webScrape) -> 
+      saveRDS(glue("./data/week{.week}_scrap.rds")) # duplicado !!!
+      saveRDS(wscraps,"./data/weeklies_scraps.rds") # de todas as semanas
+      
+    # scrape da semana
+    saveRDS(webScrape, glue("./data/weekly_webscrapes_{week}.rds"))
+  
+# Fase 2 - Calcula Projeção 
+
+  a. usa ffanalytics para calcular a proj table full (mistura dos scraps)
+  
+  ouput: saveRDS(proj_table, glue("./data/weekly_proj_table_{week}.rds"))
+  
+# Fase 3 - Estatística do Fantasy
+
+  a. chama a API da NFL para trazer as estatísticas atualizadas (de todas as semanas)
+  ouput: saveRDS("./data/players_points.rds")
+
+  b. expecificamente extrai o rankAgainst das stats (ele não é estável, é um por semana)
+  ouput: saveRDS(glue("./data/rankAgainstPosition_week{week}.rds"))
+  
+# Fase 4 - Matchups e Rosters do Fantasy
+  
+    a. recupera times, matchups e rosters da Api do Fantasy
+    
+    b. ajusta o injury status para zerar projecoes de quem está fora
+    b1. para isso cruza tem que fazer um match entre ffa_id e fantasy_id 
+      (que é um mapa mantido na mão)
+    b2. depois cruza com o team allocation para marcar se se é freeagent
+    
+    ouput: saveRDS(players_projs, glue("./data/week{week}_players_projections.rds"))
+    
+# Fase 5 - Simulação
+
+  a. um codigo custom manipula o ffanalytics para gerar a pontuação "por data_src"
+  output: saveRDS(site_pp, glue("./data/weekly_proj_player_site_{week}.rds"))
+  
+  b. (re)recalcula todas as projecoes semanais pegando os scrapes até agora
+  saveRDS(site_ptsproj, "./data/points_projection.rds") # salva pontuacao projetada
+  
+  c. aplica o erro das semanas passadas a projecao da semana atual
+  d. junta os pontos projetados das semanas e os pontos calculados com base nos erros
+  saveRDS(ptsproj, "./data/points_projection_and_errors.rds")
+
+  f. calcula uma outra project table com base na projecao de erros
+  saveRDS(glue("./data/dudesffa_projpoints_week{week}.rds"))
+  
+  g. faz a simulacao monte carlo das partidas
+  saveRDS(sim, glue("./data/simulation_v{sim.version}_week{week}_{prefix}.rds"))
+  
+# Fase 6 - Renderizacão dos reports
+
+  a. players projection
+  b. matchup simulations
+  
+# Fase 7 - Dataset exports
+
+  a. an csv for raw data and projections by position
+
+  

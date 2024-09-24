@@ -18,7 +18,7 @@ library(glue)
   # sources <- sources[-1]
   
   scrap <- scrape_data(
-    src = sources,
+    # src = sources,
     pos = c("QB", "RB", "WR", "TE", "K", "DST"),
     season = .season,
     week = .week
@@ -90,26 +90,28 @@ scrapeWebData <- function(.season, .week, .tag) {
 calcProjections <- function(.ffa_data, .scoreRules){
   
   if("dm" %in% class(.ffa_data)){
-    ffa_scrape= .ffa_data$ffa_scrape[1,]
+    ffa_scrape <- .ffa_data$ffa_scrape[1,]
   } else {
-    ffa_scrape= .ffa_data
+    ffa_scrape <- .ffa_data
   }
   
   # FFA PLAYER IDS: ORIGINAL ####
   # ffa_player_ids <- ffanalytics:::player_ids
 
   # FFA PLAYER IDS: TRATANDO IDS NAO MAPEADOS ####
-  mis_player_ids <- readRDS("./data/missing_player_ids.rds")
+  # mis_player_ids <- readRDS("./data/missing_player_ids.rds")
   
-  ffa_player_ids <- ffanalytics:::player_ids |> 
-    anti_join(mis_player_ids, by=join_by(id)) |> 
-    bind_rows(mis_player_ids)
+  ffa_player_ids <- ffanalytics:::player_ids # |> 
+    # anti_join(mis_player_ids, by=join_by(id)) |> 
+    # bind_rows(mis_player_ids)
   
   # FFA PROJECT TABLE ####
   ffa_raw_projection_table <- 
     projections_table(ffa_scrape$scrapeData[[1]], .scoreRules) |> 
-    add_ecr() |> 
-    add_uncertainty() |> 
+    # add_ecr() |>
+    # add_adp() |> 
+    # add_aav() |> 
+    # dd_uncertainty() |> 
     add_player_info() |> 
     mutate(
       timestamp = ffa_scrape$timestamp,
@@ -119,7 +121,7 @@ calcProjections <- function(.ffa_data, .scoreRules){
     ) 
   
   ffa_projtable <- ffa_raw_projection_table |> 
-    select(avg_type:uncertainty, timestamp:season) |> 
+    #select(avg_type:uncertainty, timestamp:season) |> 
     select(season, week, tag, timestamp, avg_type, id, everything()) |> 
     distinct()
   

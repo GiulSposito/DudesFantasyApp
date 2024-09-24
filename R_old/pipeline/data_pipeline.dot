@@ -1,0 +1,14 @@
+digraph dudes_data_pipeline {
+  graph [layout=dot, rankdir=TB]
+  
+  node[shape=component, style=filled, fillcolor=Linen, fontname="Fira Code", fontsize=5]
+  ffanalytics [label="/ffanalytics/R/sysdata.rda"]
+  
+  node[shape=cylinder, style=filled, fillcolor=Linen, fontname="Fira Code", fontsize=5]
+  player_ids
+  
+  node[shape=rectangle, style=filled, fillcolor=Linen, fontname="Fira Code"]
+  
+  ffanalytics -> player_ids
+  
+}
