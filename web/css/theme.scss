@@ -1,12 +1,13 @@
 /*-- scss:defaults --*/
-// Dudes Fantasy Cockpit — design tokens (docs/app_design.md).
-// Sleeper-inspired: dark navy canvas, electric cyan accent, tabular numbers.
+// Dudes Fantasy Cockpit — design system (docs/app_design.md).
+// Sleeper-inspired: very dark navy canvas, electric cyan used only for
+// emphasis, Poppins for display / Inter for data, tabular numerals, compact
+// card-oriented layout, minimal chrome.
 
 $web-font-path: "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Poppins:wght@600;700&display=swap";
 
-// Base canvas
-$body-bg:        #050921;
-$body-color:     #d8d8d8;
+$body-bg:    #050921;
+$body-color: #d8d8d8;
 
 // Bootstrap greys remapped onto the navy surface ramp
 $gray-900: #020409;
@@ -17,7 +18,6 @@ $gray-500: #242d52;
 $gray-400: #4c5579;
 $gray-300: #9298ae;
 
-// Brand / semantic
 $primary:   #00fff9;
 $secondary: #3860be;
 $success:   #28e757;
@@ -28,28 +28,35 @@ $info:      #00baff;
 $link-color: $primary;
 $border-color: #343855;
 
-// Typography
 $font-family-sans-serif: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 $headings-font-family:   "Poppins", $font-family-sans-serif;
-$font-size-base:         0.95rem;
+$font-size-base:         0.925rem;
 $headings-font-weight:   600;
 
-// Components
 $border-radius:    10px;
 $border-radius-sm: 6px;
 $border-radius-lg: 16px;
-$card-bg:          rgba(19, 27, 56, 0.72);
-$card-border-color: rgba(120, 130, 170, 0.18);
+$card-bg:           rgba(19, 27, 56, 0.66);
+$card-border-color: rgba(120, 130, 170, 0.16);
 
 /*-- scss:rules --*/
 
 :root {
-  --cockpit-bg-deep: #020409;
-  --cockpit-surface-1: #0a0f2a;
-  --cockpit-surface-2: #131b38;
-  --cockpit-surface-3: #1a2447;
-  --cockpit-accent: #00fff9;
-  --cockpit-muted: #9298ae;
+  --bg-deep:    #020409;
+  --surface-1:  #0a0f2a;
+  --surface-2:  #131b38;
+  --surface-3:  #1a2447;
+  --accent:     #00fff9;
+  --accent-dim: #00ceb8;
+  --ink:        #ffffff;
+  --ink-2:      #d8d8d8;
+  --muted:      #9298ae;
+  --line:       rgba(255, 255, 255, 0.06);
+  --border:     rgba(120, 130, 170, 0.16);
+
+  --good: #28e757;
+  --warn: #ffae58;
+  --bad:  #ff5b6e;
 
   --pos-qb:  #f45b92;
   --pos-rb:  #39c6b5;
@@ -57,30 +64,177 @@ $card-border-color: rgba(120, 130, 170, 0.18);
   --pos-te:  #f0a65a;
   --pos-k:   #a477e8;
   --pos-dst: #6d85a6;
+
+  --sp-1: 4px; --sp-2: 8px; --sp-3: 12px; --sp-4: 16px; --sp-5: 24px; --sp-6: 40px;
 }
+
+* { box-sizing: border-box; }
 
 body {
   font-variant-numeric: tabular-nums;
+  -webkit-font-smoothing: antialiased;
 }
 
-// numbers everywhere read as a data grid
-.metric, .stat, td.num, .num {
-  font-variant-numeric: tabular-nums;
+h1, h2, h3 { letter-spacing: -0.02em; }
+
+// tighten the Quarto page frame
+main.content { padding-top: var(--sp-3); }
+
+// ---- global sticky header -------------------------------------------------
+
+#cockpit-header {
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  gap: var(--sp-4);
+  flex-wrap: wrap;
+  row-gap: var(--sp-2);
+  padding: 10px 0 12px;
+  margin-bottom: var(--sp-5);
+  border-bottom: 1px solid var(--border);
+  background: rgba(5, 9, 33, 0.92);
+  backdrop-filter: blur(8px);
+  font-size: 12px;
+  color: var(--muted);
 }
+#cockpit-header .brand {
+  font-family: "Poppins", sans-serif;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: var(--ink);
+}
+#cockpit-header .ctx { display: flex; gap: var(--sp-3); flex-wrap: wrap; align-items: center; }
+#cockpit-header .spring { flex: 1; }
+#cockpit-header select {
+  background: rgba(0, 0, 0, 0.25);
+  color: var(--ink-2);
+  border: 1px solid var(--border);
+  border-radius: var(--sp-2);
+  padding: 4px 8px;
+  font-size: 12px;
+}
+#cockpit-header select:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(0, 255, 249, 0.12);
+}
+@media (max-width: 720px) {
+  #cockpit-header .ctx { display: none; }
+}
+
+// ---- cards --------------------------------------------------------------
 
 .cockpit-card {
-  background: var(--bs-card-bg);
-  border: 1px solid rgba(120, 130, 170, 0.18);
+  background: var(--bs-card-bg, rgba(19, 27, 56, 0.66));
+  border: 1px solid var(--border);
   border-radius: 10px;
-  padding: 16px;
+  padding: var(--sp-4);
+  transition: border-color 150ms ease-out, background-color 150ms ease-out;
 }
+.cockpit-card + .cockpit-card { margin-top: var(--sp-3); }
+.cockpit-card--tight { padding: var(--sp-3); }
+.cockpit-card--flat { background: var(--surface-2); }
+
+.section-label {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin: var(--sp-5) 0 var(--sp-2);
+}
+.section-label:first-child { margin-top: 0; }
+
+// ---- stat / metric ----------------------------------------------------
+
+.stat {
+  flex: 1;
+  min-width: 116px;
+}
+.stat__label {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.stat__value {
+  font-size: 24px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+  line-height: 1.15;
+}
+.stat__value--accent { color: var(--accent); }
+.stat__value--xl { font-size: 40px; font-weight: 700; }
+.stat__sub { font-size: 12px; color: var(--muted); }
+
+.stat-row {
+  display: flex;
+  gap: var(--sp-2);
+  flex-wrap: wrap;
+}
+.stat-row .stat {
+  background: var(--bs-card-bg, rgba(19, 27, 56, 0.66));
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: var(--sp-3) var(--sp-4);
+}
+
+// ---- hero (command center / matchup) --------------------------------
+
+.hero {
+  display: flex;
+  justify-content: space-around;
+  text-align: center;
+  gap: var(--sp-4);
+}
+.hero__side { flex: 1; }
+.hero__team { font-size: 12px; color: var(--muted); }
+
+// ---- player row (docs/app_design.md §15) ---------------------------
+
+.player-row {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr) 44px 96px 52px 46px;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: 7px 0;
+  border-bottom: 1px solid var(--line);
+  font-size: 13px;
+}
+.player-row:last-child { border-bottom: 0; }
+.player-row--optimal { background: rgba(0, 255, 249, 0.045); }
+.player-row__name {
+  color: var(--ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.player-row__meta { color: var(--muted); font-size: 12px; }
+.player-row__num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.player-row__num--strong { font-weight: 600; color: var(--ink); }
+@media (max-width: 640px) {
+  .player-row { grid-template-columns: 30px minmax(0, 1fr) 46px 46px; }
+  .player-row .hide-sm { display: none; }
+}
+
+// ---- position badge -------------------------------------------------
 
 .pos-badge {
   display: inline-block;
-  padding: 2px 6px;
+  min-width: 30px;
+  text-align: center;
+  padding: 2px 5px;
   border-radius: 4px;
-  font-size: 11px;
-  font-weight: 600;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
   color: #050921;
 }
 .pos-badge.qb  { background: var(--pos-qb); }
@@ -90,46 +244,175 @@ body {
 .pos-badge.k   { background: var(--pos-k); }
 .pos-badge.dst { background: var(--pos-dst); }
 
-// coverage confidence dot
-.coverage-dot { font-weight: 600; }
-.coverage-dot.high   { color: var(--bs-success); }
-.coverage-dot.medium { color: var(--bs-warning); }
-.coverage-dot.low    { color: var(--bs-danger); }
+// ---- status badges ------------------------------------------------
 
-// app-shell status banners
+.badge-pill {
+  display: inline-block;
+  padding: 2px 7px;
+  border-radius: 9999px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+.badge-pill--accent { background: rgba(0, 255, 249, 0.14); color: var(--accent); }
+.badge-pill--out    { background: rgba(255, 91, 110, 0.16); color: var(--bad); }
+.badge-pill--q      { background: rgba(255, 174, 88, 0.16); color: var(--warn); }
+.badge-pill--start  { background: rgba(40, 231, 87, 0.16); color: var(--good); }
+
+// ---- coverage dot -------------------------------------------------
+
+.coverage-dot { font-weight: 600; font-size: 11px; }
+.coverage-dot.high   { color: var(--good); }
+.coverage-dot.medium { color: var(--warn); }
+.coverage-dot.low    { color: var(--bad); }
+
+// ---- delta tint -------------------------------------------------
+
+.delta { font-variant-numeric: tabular-nums; }
+.delta--pos { color: var(--good); }
+.delta--neg { color: var(--bad); }
+.delta--zero { color: var(--muted); }
+
+// ---- inline mini bar ------------------------------------------
+
+.bar {
+  height: 8px;
+  background: var(--surface-2);
+  border-radius: 4px;
+  overflow: hidden;
+}
+.bar__fill { height: 100%; background: var(--accent); }
+
+// ---- tables (sports terminal, not spreadsheet) --------------
+
+table.cockpit-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+table.cockpit-table thead th {
+  position: sticky;
+  top: 0;
+  background: var(--surface-1);
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  text-align: left;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border);
+}
+table.cockpit-table tbody td {
+  padding: 9px 10px;
+  border-bottom: 1px solid var(--line);
+  color: var(--ink-2);
+}
+table.cockpit-table tbody tr { transition: background-color 120ms ease-out; }
+table.cockpit-table tbody tr:hover { background: rgba(0, 255, 249, 0.04); }
+table.cockpit-table tbody tr.clickable { cursor: pointer; }
+table.cockpit-table .num { text-align: right; }
+table.cockpit-table .col-tight { width: 1%; white-space: nowrap; }
+
+.cockpit-tablewrap { overflow-x: auto; }
+.cockpit-tablewrap table.cockpit-table { min-width: 460px; }
+
+// ---- sparkline ------------------------------------------
+
+.sparkline { display: inline-block; vertical-align: middle; line-height: 0; }
+.sparkline path { fill: none; stroke: var(--accent); stroke-width: 1.5; }
+.sparkline .zero { stroke: var(--line); stroke-width: 1; }
+
+// ---- banners ------------------------------------------
+
 .cockpit-banner {
   border-radius: 8px;
   padding: 10px 14px;
-  margin-bottom: 16px;
-  font-size: 0.9rem;
+  margin-bottom: var(--sp-4);
+  font-size: 0.88rem;
 }
-.cockpit-banner.loading { background: var(--cockpit-surface-2); color: var(--cockpit-muted); }
-.cockpit-banner.error   { background: rgba(255, 91, 110, 0.15); color: #ff5b6e; }
-.cockpit-banner.stale   { background: rgba(255, 174, 88, 0.15); color: #ffae58; }
-.cockpit-banner.empty   { background: var(--cockpit-surface-2); color: var(--cockpit-muted); }
+.cockpit-banner.loading { background: var(--surface-2); color: var(--muted); }
+.cockpit-banner.error   { background: rgba(255, 91, 110, 0.15); color: var(--bad); }
+.cockpit-banner.stale   { background: rgba(255, 174, 88, 0.15); color: var(--warn); }
+.cockpit-banner.empty   { background: var(--surface-2); color: var(--muted); }
 
-// analytical tables scroll inside their own box, never the page
-.cockpit-tablewrap { overflow-x: auto; }
-.cockpit-tablewrap table { min-width: 480px; }
+// ---- layout helpers ------------------------------------------
 
-// two-column dashboard blocks collapse on narrow viewports
 .grid-2 {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 14px;
+  gap: var(--sp-4);
   align-items: start;
 }
-@media (max-width: 900px) {
-  .grid-2 { grid-template-columns: 1fr; }
+@media (max-width: 900px) { .grid-2 { grid-template-columns: 1fr; } }
+
+.toolbar {
+  display: flex;
+  gap: var(--sp-2);
+  flex-wrap: wrap;
+  align-items: center;
+  margin-bottom: var(--sp-3);
+}
+.chip {
+  padding: 3px 10px;
+  border-radius: 9999px;
+  font-size: 12px;
+  font-weight: 500;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  transition: all 120ms ease-out;
+}
+.chip:hover { color: var(--ink-2); border-color: var(--gray-400, #4c5579); }
+.chip.active { background: rgba(0, 255, 249, 0.14); border-color: rgba(0, 255, 249, 0.4); color: var(--accent); }
+
+.field {
+  height: 34px;
+  background: rgba(0, 0, 0, 0.22);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--ink);
+  padding: 0 12px;
+  font-size: 13px;
+}
+.field:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(0, 255, 249, 0.1);
 }
 
-// header wraps cleanly and the selectors stay reachable on mobile
-#cockpit-header { row-gap: 6px; }
-@media (max-width: 700px) {
-  #cockpit-header > span:first-of-type { display: none; }
-}
+// ---- right-hand drawer ------------------------------------------
 
-// give the fixed drawer breathing room from the bottom nav on mobile
-@media (max-width: 600px) {
-  #cockpit-drawer { width: 100vw; }
+#cockpit-drawer {
+  position: fixed;
+  top: 0; right: 0; bottom: 0;
+  width: min(440px, 94vw);
+  z-index: 1050;
+  background: var(--surface-2);
+  border-left: 1px solid var(--border);
+  padding: 20px;
+  overflow: auto;
+  box-shadow: -10px 0 30px rgba(0, 0, 0, 0.45);
 }
+#cockpit-drawer .drawer__title {
+  font-family: "Poppins", sans-serif;
+  font-weight: 600;
+  color: var(--ink);
+}
+@media (max-width: 600px) { #cockpit-drawer { width: 100vw; } }
+
+// key / value line
+.kv {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--sp-4);
+  padding: 4px 0;
+  font-size: 13px;
+  border-bottom: 1px solid var(--line);
+}
+.kv:last-child { border-bottom: 0; }
+.kv > span:first-child { color: var(--muted); }
+.kv > span:last-child { font-variant-numeric: tabular-nums; text-align: right; }

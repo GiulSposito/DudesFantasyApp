@@ -151,6 +151,11 @@ export async function getSourceAccuracy() {
   return q("SELECT * FROM source_accuracy ORDER BY season DESC, data_src, position", "source_accuracy");
 }
 
+export async function getPlayerHistory(ffaId) {
+  return q(`SELECT season, week, actual_points FROM player_points WHERE ffa_id = '${ffaId}' AND week > 0 ORDER BY season, week`,
+    "player_points");
+}
+
 export async function getConsensusHistory({ season = null, limit = 4000 } = {}) {
   let sql = "SELECT season, week, position, coverage_class, source_sd, abs_residual, residual FROM consensus_history WHERE week > 0";
   if (season) sql += ` AND season = ${Number(season)}`;

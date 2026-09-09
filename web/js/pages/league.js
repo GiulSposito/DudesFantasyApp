@@ -41,14 +41,14 @@ export async function render(root) {
     
     sectionLabel("Standings"),
     rankTable(ranked, [
-      { key: "rank", label: "#", align: "right" },
+      { key: "rank", label: "#", num: true },
       { key: "team_name", label: "Team" },
-      { key: "wins", label: "W", align: "right" },
-      { key: "losses", label: "L", align: "right" },
-      { key: "points_for", label: "PF", align: "right", fmt: (v) => fmt.points(v) },
-      { key: "points_against", label: "PA", align: "right", fmt: (v) => fmt.points(v) },
-      { key: "opt", label: "Strength (optimal exp)", align: "right", fmt: (v) => fmt.points(v) },
-      { key: "strength_rank", label: "Str #", align: "right" },
+      { key: "wins", label: "W", num: true },
+      { key: "losses", label: "L", num: true },
+      { key: "points_for", label: "PF", num: true, fmt: (v) => fmt.points(v) },
+      { key: "points_against", label: "PA", num: true, fmt: (v) => fmt.points(v) },
+      { key: "opt", label: "Strength (optimal exp)", num: true, fmt: (v) => fmt.points(v) },
+      { key: "strength_rank", label: "Str #", num: true },
     ]),
 
     sectionLabel("Position strength vs league average (optimal starters, sim mean)"),
@@ -56,7 +56,7 @@ export async function render(root) {
 
     sectionLabel("Standings vs roster strength"),
     card(el("div", { id: "lg-quad" }),
-      el("div", { style: "font-size:12px;color:#9298ae" },
+      el("div", { class: "stat__sub" },
         "Upper-left: strong roster, weak record. Lower-right: weak roster, good record.")),
   );
 

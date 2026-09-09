@@ -34,11 +34,11 @@ export async function render(root) {
     
     el("div", { style: "display:flex;gap:8px;align-items:center;margin-bottom:10px;flex-wrap:wrap" },
       ...["mae", "rmse", "bias"].map((m) =>
-        el("button", { class: "btn btn-sm " + (m === metric ? "btn-info" : "btn-outline-secondary"),
+        el("button", { class: "chip" + (m === metric ? " active" : ""),
           onclick: () => { metric = m; render(root); } }, m.toUpperCase())),
-      el("span", { style: "color:#9298ae;font-size:12px" }, "season"),
+      el("span", { class: "stat__sub" }, "season"),
       ...seasons.map((s) =>
-        el("button", { class: "btn btn-sm " + (s === season ? "btn-info" : "btn-outline-secondary"),
+        el("button", { class: "chip" + (s === season ? " active" : ""),
           onclick: () => { season = s; render(root); } }, s))),
 
     sectionLabel(`Source accuracy — ${metric.toUpperCase()} by position (${season})`),
@@ -49,7 +49,7 @@ export async function render(root) {
 
     sectionLabel("Does source disagreement predict error?"),
     card(el("div", { id: "pj-consensus" }),
-      el("div", { style: "font-size:12px;color:#9298ae" },
+      el("div", { class: "stat__sub" },
         "Each point: one historical player-week. X = spread between sources, Y = |actual − projection|.")),
   );
 

@@ -22,23 +22,6 @@ export function el(tag, attrs = {}, ...kids) {
   return n;
 }
 
-// table(container, rows, [{key, label, fmt, cls}])
-export function table(rows, cols) {
-  const wrap = el("div", { class: "cockpit-tablewrap" });
-  const t = el("table", { class: "table table-sm table-dark align-middle" });
-  t.append(el("thead", {}, el("tr", {}, ...cols.map((c) => el("th", { class: c.cls }, c.label)))));
-  const tb = el("tbody");
-  for (const r of rows) {
-    tb.append(el("tr", {}, ...cols.map((c) => {
-      const raw = r[c.key];
-      return el("td", { class: c.cls }, c.fmt ? c.fmt(raw, r) : fmt.naDash(raw));
-    })));
-  }
-  t.append(tb);
-  wrap.append(t);
-  return wrap;
-}
-
 export function banner(kind, msg) {
   return el("div", { class: `cockpit-banner ${kind}` }, msg);
 }
@@ -58,30 +41,24 @@ async function renderHeader() {
   let bar = document.getElementById("cockpit-header");
   if (!bar) {
     bar = el("div", { id: "cockpit-header" });
-    bar.style.cssText =
-      "display:flex;gap:16px;align-items:center;flex-wrap:wrap;padding:10px 0 14px;" +
-      "border-bottom:1px solid #343855;margin-bottom:18px;font-size:0.85rem;color:#9298ae";
     document.querySelector("main")?.prepend(bar);
   }
   const s = state.get();
-  const teamSel = el("select", { class: "form-select form-select-sm", style: "width:auto;display:inline-block",
-    onchange: (e) => state.set({ teamId: e.target.value }) },
-    ...(_run?.privacy === "public" ? [] : []),
+  const teamSel = el("select", { onchange: (e) => state.set({ teamId: e.target.value }) },
     ..._teams.map((t) => el("option", { value: t.team_id, selected: String(t.team_id) === String(s.teamId) ? "" : null }, t.team_name)));
   const runs = await data.getRuns().catch(() => []);
-  const runSel = el("select", { class: "form-select form-select-sm", style: "width:auto;display:inline-block",
-    onchange: (e) => state.set({ runId: e.target.value }) },
+  const runSel = el("select", { onchange: (e) => state.set({ runId: e.target.value }) },
     ...runs.map((r) => el("option", { value: r.run_id, selected: r.run_id === s.runId ? "" : null },
       `${r.season} W${r.week} ${r.tag}`)));
 
   bar.replaceChildren(
-    el("strong", { style: "color:#fff;font-family:Poppins,sans-serif;letter-spacing:0.02em" }, "DUDES"),
-    el("span", {}, `${_run.season} · Week ${_run.week} · ${_run.tag}`),
-    el("span", {}, _run.model_version),
-    el("span", {}, `Updated ${fmt.ts(_run.generated_at)} (${fmt.since(_run.generated_at)})`),
-    el("span", { style: "flex:1" }),
-    el("span", {}, "Team "), teamSel,
-    el("span", {}, "Run "), runSel,
+    el("span", { class: "brand" }, "DUDES"),
+    el("div", { class: "ctx" },
+      el("span", {}, `${_run.season} · Week ${_run.week} · ${_run.tag}`),
+      el("span", {}, _run.model_version),
+      el("span", {}, `updated ${fmt.since(_run.generated_at)}`)),
+    el("span", { class: "spring" }),
+    teamSel, runSel,
   );
 }
 
