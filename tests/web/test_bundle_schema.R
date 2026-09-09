@@ -1,0 +1,125 @@
+# tests/web/test_bundle_schema.R - every expected parquet exists and each mart
+# carries at least the contract's required columns. Reads the committed fixture.
+
+suppressMessages({library(nanoparquet); library(jsonlite)})
+
+FIX <- "./tests/fixtures/web_bundle"
+rp  <- function(x) as.data.frame(read_parquet(file.path(FIX, x)))
+
+expected <- c(
+  "runs.parquet",
+  "dimensions/teams.parquet", "dimensions/players.parquet",
+  "dimensions/roster_slots.parquet",
+  "current/standings.parquet", "current/rosters.parquet",
+  "current/forecasts.parquet", "current/matchups.parquet",
+  "current/lineup_evaluations.parquet", "current/lineup_recommendations.parquet",
+  "current/free_agents.parquet", "current/waiver_recommendations.parquet",
+  "current/trade_recommendations.parquet", "current/data_health.parquet",
+  "projections/source_projections.parquet", "projections/source_accuracy.parquet"
+)
+stopifnot(all(file.exists(file.path(FIX, expected))),
+          file.exists(file.path(FIX, "manifest.json")))
+
+need <- list(
+  "runs.parquet" = c("run_id", "created_at", "season", "week", "tag",
+                     "ffa_timestamp", "espn_timestamp", "model_version",
+                     "n_sim", "seed", "is_current"),
+  "dimensions/teams.parquet" = c("season", "team_id", "team_name", "is_my_team"),
+  "dimensions/players.parquet" = c("season", "player_id", "player_name"),
+  "dimensions/roster_slots.parquet" = c("season", "lineup_slot_id",
+                                        "slot_label", "slot_count"),
+  "current/standings.parquet" = c("run_id", "season", "week", "team_id",
+                                  "team_name", "rank", "wins", "losses", "ties",
+                                  "points_for", "points_against", "streak"),
+  "current/rosters.parquet" = c("run_id", "season", "week", "team_id", "team_name",
+                                "player_id", "ffa_id", "player_name", "position",
+                                "nfl_team", "lineup_slot_id", "lineup_slot",
+                                "is_starter", "is_bench", "is_ir", "injury_status",
+                                "injured", "active", "projection", "sim_mean",
+                                "sim_sd", "p10", "p25", "p50", "p75", "p90",
+                                "prob_gt_10", "prob_gt_15", "prob_gt_20",
+                                "prob_gt_25", "n_sources", "coverage_class",
+                                "is_optimal_starter", "optimal_slot", "bridge_method"),
+  "current/forecasts.parquet" = c("run_id", "season", "week", "tag", "ffa_id",
+                                  "espn_id", "player_name", "position", "nfl_team",
+                                  "projection", "n_sources", "coverage_class",
+                                  "source_sd", "source_mad", "sim_mean", "sim_sd",
+                                  "p05", "p10", "p25", "p50", "p75", "p90", "p95",
+                                  "prob_gt_10", "prob_gt_15", "prob_gt_20",
+                                  "prob_gt_25", "prob_gt_30", "residual_pool_level",
+                                  "residual_pool_n"),
+  "current/matchups.parquet" = c("run_id", "season", "week", "tag", "matchup_id",
+                                 "home_team_id", "home_team_name", "away_team_id",
+                                 "away_team_name", "home_expected", "away_expected",
+                                 "home_p10", "home_p50", "home_p90", "away_p10",
+                                 "away_p50", "away_p90", "home_win_probability",
+                                 "away_win_probability", "tie_probability", "n_sim",
+                                 "is_my_matchup"),
+  "current/lineup_evaluations.parquet" = c("run_id", "season", "week", "tag",
+                                           "team_id", "team_name", "opponent_team_id",
+                                           "opponent_team_name", "current_expected",
+                                           "current_p10", "current_p50", "current_p90",
+                                           "current_win_probability", "optimal_expected",
+                                           "optimal_p10", "optimal_p50", "optimal_p90",
+                                           "optimal_win_probability", "bench_value",
+                                           "n_substitutions", "delta_expected",
+                                           "delta_win_probability"),
+  "current/lineup_recommendations.parquet" = c("run_id", "season", "week", "tag",
+                                               "team_id", "team_name", "player_out_id",
+                                               "player_out_name", "player_out_position",
+                                               "player_in_id", "player_in_name",
+                                               "player_in_position", "slot",
+                                               "current_expected", "optimized_expected",
+                                               "delta_expected", "current_win_probability",
+                                               "optimized_win_probability",
+                                               "delta_win_probability", "recommendation_rank"),
+  "current/free_agents.parquet" = c("run_id", "player_id", "ffa_id", "player_name",
+                                    "position", "nfl_team", "injury_status",
+                                    "projection", "sim_mean", "sim_sd", "p10", "p50",
+                                    "p90", "prob_gt_10", "prob_gt_15", "prob_gt_20",
+                                    "prob_gt_25", "n_sources", "coverage_class",
+                                    "percent_owned", "percent_started"),
+  "current/waiver_recommendations.parquet" = c("run_id", "season", "week", "tag",
+                                               "team_id", "drop_player_id", "drop_ffa_id",
+                                               "drop_player_name", "drop_position",
+                                               "add_player_id", "add_ffa_id",
+                                               "add_player_name", "add_position",
+                                               "before_expected", "after_expected",
+                                               "delta_expected", "before_win_probability",
+                                               "after_win_probability",
+                                               "delta_win_probability", "recommendation_rank"),
+  "current/trade_recommendations.parquet" = c("run_id", "season", "week", "tag",
+                                              "my_team_id", "other_team_id",
+                                              "give_player_id", "give_ffa_id",
+                                              "give_player_name", "give_position",
+                                              "receive_player_id", "receive_ffa_id",
+                                              "receive_player_name", "receive_position",
+                                              "my_before_expected", "my_after_expected",
+                                              "my_delta_expected", "their_before_expected",
+                                              "their_after_expected", "their_delta_expected",
+                                              "my_before_win_probability",
+                                              "my_after_win_probability",
+                                              "my_delta_win_probability", "fairness",
+                                              "trade_score", "partner_is_my_opponent",
+                                              "recommendation_rank"),
+  "current/data_health.parquet" = c("run_id", "generated_at", "ffa_timestamp",
+                                    "espn_timestamp", "decision_timestamp",
+                                    "n_forecast_players", "n_rostered_players",
+                                    "n_starters", "n_mapped_players", "n_mapped_starters",
+                                    "n_unmapped_players", "n_ensemble", "n_sparse",
+                                    "n_single", "pct_ensemble", "pct_sparse",
+                                    "pct_single", "model_version", "n_sim", "status"),
+  "projections/source_projections.parquet" = c("run_id", "ffa_id", "espn_id",
+                                               "player_name", "position", "nfl_team",
+                                               "data_src", "projected_points"),
+  "projections/source_accuracy.parquet" = c("season", "data_src", "position",
+                                            "bias", "mae", "rmse", "n")
+)
+
+for (rel in names(need)) {
+  cols <- names(rp(rel))
+  miss <- setdiff(need[[rel]], cols)
+  if (length(miss)) stop(rel, " missing required columns: ", paste(miss, collapse = ", "))
+}
+
+cat("PASS test_bundle_schema.R\n")
