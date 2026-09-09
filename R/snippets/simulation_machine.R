@@ -4,8 +4,8 @@ library(tidyverse)
 # PARA CADA JOGADOR COM PONTO NA TEMPORADA 2023
 
 # MASTER PARAMETERS ####
-WEEK <- 11
-SEASON <- 2023
+WEEK <- 1L
+SEASON <- 2024L
 
 # SOURCE DATABASES ####
 ffa <- readRDS("./data/ffa_db.rds") # projecoes

@@ -6,3 +6,23 @@
 config
 data
 export
+
+# SECRET: real ESPN session cookies in plaintext (CLAUDE.md: do not commit)
+/R/api/example_espn_342842788.R
+
+# large local archive (~1 GB, no code reads it — regenerated from data/ + historic sources)
+/historic/
+
+# local tooling, reinstallable — not project code (CLAUDE.md)
+/.claude/
+/_bmad/
+/_bmad-output/
+
+# Quarto rendered output (source is the .qmd / .md)
+/web/_site/
+/web/.quarto/
+/docs/*_files/
+/docs/*.html
+
+# web cockpit: generated data bundle (the anonymized fixture in tests/ IS committed)
+/web/data/
