@@ -106,6 +106,14 @@ export async function getMyMatchup() {
   return rows[0] || null;
 }
 
+export async function getMatchupForTeam(teamId) {
+  const rows = await q(
+    `SELECT * FROM matchups WHERE home_team_id = '${teamId}' OR away_team_id = '${teamId}' LIMIT 1`,
+    "matchups",
+  );
+  return rows[0] || null;
+}
+
 export async function getLineupEvaluation(teamId) {
   const rows = await q(`SELECT * FROM lineup_evaluations WHERE team_id = '${teamId}' LIMIT 1`, "lineup_evaluations");
   return rows[0] || null;
