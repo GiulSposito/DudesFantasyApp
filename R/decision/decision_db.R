@@ -7,7 +7,7 @@
 # M1 tables: simulation_runs, player_forecasts. M2 adds matchup_simulations. M3
 # adds lineup_evaluations (1 row/team) + lineup_recommendations (0+ rows/team).
 # M4 adds free_agent_recommendations (0+ rows, one team). M5 adds
-# trade_recommendations (0+ rows, one team). M0.5 adds current_players (the
+# trade_recommendations (0+ rows/team, ranked per my_team_id). M0.5 adds current_players (the
 # rostered player pool, 1 row/team/player) + free_agents (the off-roster pool, 1
 # row/player) so the web bundle layer reads one run without re-simulating.
 # Draws are never persisted (spec 32).
@@ -93,7 +93,7 @@ build_decision_db <- function(simulation_run, player_forecasts,
   if (!is.null(trade_recommendations)) {
     db <- dm(db, trade_recommendations = trade_recommendations) |>
       dm_add_pk(trade_recommendations,
-                c(run_id, other_team_id, give_player_id, receive_player_id), check = TRUE) |>
+                c(run_id, my_team_id, other_team_id, give_player_id, receive_player_id), check = TRUE) |>
       dm_add_fk(trade_recommendations, run_id, simulation_runs, check = TRUE)
   }
 

@@ -35,7 +35,7 @@ run_decision_pipeline <- function(season, week, tag,
                                   free_agents = TRUE, fa_team_id = NULL,
                                   fa_max_adds_per_pos = 5L, fa_max_drops = 10L,
                                   fa_top_n = 25L,
-                                  trades = TRUE, trade_team_id = NULL,
+                                  trades = TRUE, trade_team_id = NULL,  # NULL = all teams
                                   trade_max_give = 5L, trade_max_receive_per_pos = 5L,
                                   trade_top_n = 25L,
                                   persist_draws = FALSE, persist = TRUE) {
@@ -109,11 +109,10 @@ run_decision_pipeline <- function(season, week, tag,
   }
 
   # --- Phase 9: trade recommendations (spec 24-28, 43) --------------------
+  # trade_team_id = NULL advises every team in the league; pass an id (or vector)
+  # to restrict.
   trade_recs <- NULL
   if (trades) {
-    if (is.null(trade_team_id)) {
-      trade_team_id <- as.integer(yaml::read_yaml("./config/config.yml")$myTeamEspnId)
-    }
     trade_recs <- recommend_trades(
       current_players, espn_snap, draws_by_ffa,
       run_id, season, week, tag, team_id = trade_team_id,

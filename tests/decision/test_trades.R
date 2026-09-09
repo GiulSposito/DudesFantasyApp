@@ -98,6 +98,23 @@ stopifnot(
                                   max_receive_per_pos = 3L, top_n = 10L))
 )
 
+# team_id = NULL -> advise every team; each ranked independently from 1, and the
+# per-team slice is identical to asking for that team alone (spec 43).
+all_teams <- recommend_trades(cp, espn_snap, draws, "TESTRUN", 2026, 1, "preview",
+                              team_id = NULL, max_give = 5L,
+                              max_receive_per_pos = 3L, top_n = 10L)
+stopifnot(
+  identical(names(all_teams), names(.empty_trade_recs())),
+  all(all_teams$my_team_id %in% c(10L, 20L, 30L, 40L)),
+  length(unique(all_teams$my_team_id)) >= 2L,                 # more than my team
+  nrow(all_teams) > 3,                                        # team 10 alone had 3
+  all(all_teams$other_team_id != all_teams$my_team_id),
+  # recommendation_rank restarts at 1 per my_team_id
+  all(tapply(all_teams$recommendation_rank, all_teams$my_team_id,
+             function(r) identical(sort(r), seq_along(r)))),
+  identical(dplyr::filter(all_teams, my_team_id == 10L), out)
+)
+
 # no unique opponent for my team -> empty, no error
 snap_bad <- modifyList(espn_snap,
   list(matchups = tibble(home_team_id = 99L, away_team_id = 98L)))

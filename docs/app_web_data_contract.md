@@ -1214,10 +1214,14 @@ decision_db$trade_recommendations
 
 ```text
 run_id
++ my_team_id
 + other_team_id
 + give_player_id
 + receive_player_id
 ```
+
+The table now carries recommendations for every team; `recommendation_rank`
+restarts at 1 per `my_team_id`. The frontend filters to the selected team.
 
 ## Contract
 

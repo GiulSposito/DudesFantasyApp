@@ -2,11 +2,12 @@
 
 Roteiro de aceite. Caso de sucesso simples: rodar o pipeline para o snapshot real
 `season = 2026`, `week = 1`, `tag = "preview"` e conferir as trocas 1×1
-recomendadas para o time escolhido (`trade_recommendations`, spec §24–28/§43) e a
-persistência num `dm` de 7 tabelas.
+recomendadas para todos os times da liga (`trade_recommendations`, spec §24–28/§43)
+e a persistência num `dm` de 7 tabelas.
 
-Tempo estimado: ~30 s (o motor de trades roda `evaluate_roster()` algumas centenas
-de vezes; ~8 s a mais que o M4 com `n_sim = 10000`).
+Tempo estimado: alguns minutos (o motor de trades roda `evaluate_roster()` algumas
+centenas de vezes por time, para cada time da liga, com `n_sim = 10000`). Passe
+`trade_team_id = <id>` para restringir a um time e voltar ao tempo do M4.
 
 Pré-requisitos: iguais ao M1–M4 (working dir = raiz do projeto; `data/ffa_db.rds`,
 `data/espn_db.rds`, `data/analytical_db.rds` presentes; `config/config.yml` com
@@ -45,7 +46,8 @@ free_agent_recommendations, trade_recommendations); starting fresh run history
 
 ```r
 tr <- res$trade_recommendations
-nrow(tr)                       #> 0..25  (só do time config$myTeamEspnId)
+nrow(tr)                       #> 0..25 por time (padrão: todos os times da liga)
+dplyr::count(tr, my_team_id)   #> <= 25 linhas por my_team_id
 dplyr::glimpse(tr)
 ```
 
@@ -54,12 +56,12 @@ dplyr::glimpse(tr)
 | item | esperado |
 |---|---|
 | colunas | `run_id, season, week, tag, my_team_id, other_team_id, give_player_id, give_ffa_id, receive_player_id, receive_ffa_id, give_position, receive_position, my_before_expected, my_after_expected, my_delta_expected, their_before_expected, their_after_expected, their_delta_expected, my_before_win_probability, my_after_win_probability, my_delta_win_probability, fairness, trade_score, partner_is_my_opponent, recommendation_rank` |
-| `my_team_id` | todas as linhas == `config$myTeamEspnId` (4) |
-| `other_team_id` | sempre `!= my_team_id` |
+| `my_team_id` | um bloco por time da liga (passe `trade_team_id` para restringir) |
+| `other_team_id` | sempre `!= my_team_id` na mesma linha |
 | `my_delta_expected` | **> 0** em toda linha (regra dura da spec §26) |
 | `their_delta_expected` | **>= 0** em toda linha (default `min_their_delta = 0`) |
-| `give_player_id` | sempre um jogador do meu roster; `receive_player_id` nunca |
-| `recommendation_rank` | `1..nrow`, ordenado por `trade_score` desc |
+| `give_player_id` | sempre um jogador do roster de `my_team_id`; `receive_player_id` nunca |
+| `recommendation_rank` | recomeça em `1` para cada `my_team_id`, ordenado por `trade_score` desc |
 
 Saída de referência (última execução — os números variam com o refresh dos dados):
 
@@ -133,7 +135,7 @@ dm_examine_constraints(d)
 #> ℹ All constraints satisfied.
 
 dm_get_all_pks(d)   |> dplyr::filter(table == "trade_recommendations")
-#> trade_recommendations : run_id, other_team_id, give_player_id, receive_player_id
+#> trade_recommendations : run_id, my_team_id, other_team_id, give_player_id, receive_player_id
 
 dm_get_all_fks(d)   |> dplyr::filter(child_table == "trade_recommendations")
 #> trade_recommendations.run_id -> simulation_runs
@@ -185,11 +187,11 @@ run_decision_pipeline(2026, 9, "preview")
 | # | Critério | OK? |
 |---|---|---|
 | 1 | `run_decision_pipeline(2026, 1, "preview")` roda sem erro (~30 s) | ☐ |
-| 2 | `trade_recommendations` com <= 25 linhas, schema completo, todas `my_team_id == config$myTeamEspnId` | ☐ |
+| 2 | `trade_recommendations` com <= 25 linhas por `my_team_id`, schema completo, um bloco por time da liga | ☐ |
 | 3 | `my_delta_expected > 0` e `their_delta_expected >= 0` em toda linha | ☐ |
-| 4 | `give_player_id` sempre no meu roster; `receive_player_id` nunca | ☐ |
+| 4 | `give_player_id` sempre no roster de `my_team_id`; `receive_player_id` nunca | ☐ |
 | 5 | `trade_score == my_delta + pmin(my_delta, their_delta)`; `fairness == -abs(my_delta - their_delta)` | ☐ |
-| 6 | `recommendation_rank` sequencial, ordenado por `trade_score` desc | ☐ |
+| 6 | `recommendation_rank` recomeça em 1 por `my_team_id`, ordenado por `trade_score` desc | ☐ |
 | 7 | `partner_is_my_opponent` entendido (teto de win probability) | ☐ |
 | 8 | Mesma seed → trades idênticos (menos `run_id`) | ☐ |
 | 9 | `data/decision_db.rds` é `dm` de 7 tabelas, `dm_examine_constraints` limpo, PK/FK de `trade_recommendations` corretas | ☐ |

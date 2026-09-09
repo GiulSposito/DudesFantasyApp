@@ -1642,7 +1642,7 @@ delta P(win)
 
 # 43. Critérios de aceite — Milestone 5
 
-Para o time escolhido:
+Para cada time da liga (ou apenas o time indicado, se `team_id` for passado):
 
 ```text
 Top mutually useful 1×1 trades
@@ -1651,6 +1651,9 @@ my delta
 their delta
 trade score
 ```
+
+`recommendation_rank` recomeça em 1 para cada `my_team_id`. O padrão do pipeline
+(`trade_team_id = NULL`) roda para todos os times.
 
 ---
 

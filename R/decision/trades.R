@@ -1,15 +1,20 @@
 # Decision engine - Phase 9: 1x1 trade recommendations (spec 24-28, 43).
 #
-# recommend_trades(): for one team, score a bounded GIVE x RECEIVE grid of single-
-# for-single swaps against every other team, and keep the ones that raise my
-# roster's expected points (spec 26) - preferring the ones that also help (or at
-# least don't hurt) the partner (spec 26-27).
+# recommend_trades(): for each advised team (team_id = NULL means every team in the
+# league - spec 43), score a bounded GIVE x RECEIVE grid of single-for-single swaps
+# against every other team, and keep the ones that raise that team's expected
+# points (spec 26) - preferring the ones that also help (or at least don't hurt)
+# the partner (spec 26-27). recommendation_rank restarts at 1 per my_team_id.
 #
 # No new simulation - draws_by_ffa already covers every FFA-projected player, so a
 # received player has a draw vector without re-simulating. evaluate_roster() is
 # reused as-is; each team is scored against ITS OWN current-week opponent, held at
 # that opponent's current ESPN starters (spec 41) - same convention as
 # recommend_lineups() / recommend_free_agents().
+#
+# ponytail: O(advised teams x partners) evaluate_roster() calls - baselines are
+# recomputed per advising team. A few minutes for the whole league at n_sim=10000;
+# memoise the per-team baseline if that ever matters.
 #
 # ponytail: when the trade partner IS my week's matchup opponent, my_*_win_probability
 # is optimistic - the received player is counted in my simulated matchup on both
@@ -50,13 +55,14 @@ if (!exists("bridge_espn_to_ffa")) source("./R/decision/league_state.R")
 # current_players : build_current_league_state() output (all teams).
 # espn_snap       : select_espn_snapshot() output (needs $roster_slots, $matchups).
 # draws_by_ffa    : named list character(ffa_id) -> numeric(n_sim).
-# team_id         : the ESPN team_id to advise (spec 43, one team).
-# Returns 0..top_n rows of the .empty_trade_recs() schema, ranked by trade_score
-# desc (my_delta_win_probability is reported, not ranked on - MC-noisy, same
-# choice recommend_lineups() / recommend_free_agents() make).
+# team_id         : ESPN team_id(s) to advise, or NULL for every team (spec 43).
+# Returns 0..top_n rows PER advised team of the .empty_trade_recs() schema, each
+# team ranked by trade_score desc with recommendation_rank restarting at 1
+# (my_delta_win_probability is reported, not ranked on - MC-noisy, same choice
+# recommend_lineups() / recommend_free_agents() make).
 recommend_trades <- function(current_players, espn_snap, draws_by_ffa,
                              run_id, season, week, tag,
-                             team_id,
+                             team_id             = NULL,
                              exclude_status      = "OUT",
                              max_give            = 5L,
                              max_receive_per_pos = 5L,
@@ -65,7 +71,6 @@ recommend_trades <- function(current_players, espn_snap, draws_by_ffa,
                              min_their_delta     = 0) {
 
   slots <- espn_snap$roster_slots
-  tid   <- as.integer(team_id)
 
   # bidirectional team -> opponent map (spec 41) - same as recommend_lineups()
   mu  <- espn_snap$matchups |> distinct(home_team_id, away_team_id)
@@ -73,12 +78,6 @@ recommend_trades <- function(current_players, espn_snap, draws_by_ffa,
     transmute(mu, team_id = home_team_id, opponent_team_id = away_team_id),
     transmute(mu, team_id = away_team_id, opponent_team_id = home_team_id)
   )
-  my_opp <- opp$opponent_team_id[opp$team_id == tid]
-  if (length(my_opp) != 1L) {
-    warning(glue::glue("team {tid}: no unique opponent this week; no trade recs"),
-            call. = FALSE)
-    return(.empty_trade_recs())
-  }
 
   starters_ffa <- function(t) {
     current_players$ffa_id[current_players$team_id == t &
@@ -107,6 +106,16 @@ recommend_trades <- function(current_players, espn_snap, draws_by_ffa,
   start_slot_ids <- unique(.starting_slots(slots)$lineup_slot_id)
   start_elig <- function(x) intersect(.parse_slot_ids(x), start_slot_ids)
 
+  # --- per-team recommender (spec 43: run for one team or the whole league) --
+  advise_team <- function(tid) {
+  tid <- as.integer(tid)
+  my_opp <- opp$opponent_team_id[opp$team_id == tid]
+  if (length(my_opp) != 1L) {
+    warning(glue::glue("team {tid}: no unique opponent this week; no trade recs"),
+            call. = FALSE)
+    return(.empty_trade_recs())
+  }
+
   # --- my baseline ---------------------------------------------------------
   my_base    <- base_roster(tid)
   my_opp_ffa <- starters_ffa(my_opp)
@@ -114,10 +123,9 @@ recommend_trades <- function(current_players, espn_snap, draws_by_ffa,
   n_before_me <- nrow(my_before$optimal_lineup[[1]])
 
   # GIVE pool: the max_give weakest movable players (you trade from surplus, and
-  # a strong player rarely nets delta_me > 0 anyway). ponytail: ~max_give x 13
-  # partners x max_receive_per_pos evaluate_roster() calls (~a few hundred, a few
-  # seconds at n_sim=10000). Widen max_give / max_receive_per_pos if the surplus
-  # heuristic misses a good trade.
+  # a strong player rarely nets delta_me > 0 anyway). ~max_give x ~13 partners x
+  # max_receive_per_pos evaluate_roster() calls per advised team. Widen max_give /
+  # max_receive_per_pos if the surplus heuristic misses a good trade.
   give_pool <- my_base |>
     filter(has_draws(ffa_id)) |>
     arrange(sim_mean) |>
@@ -216,5 +224,15 @@ recommend_trades <- function(current_players, espn_snap, draws_by_ffa,
     mutate(recommendation_rank = row_number()) |>
     head(top_n)
 
+  if (nrow(out) == 0L) .empty_trade_recs() else out
+  }
+
+  advisors <- if (is.null(team_id)) {
+    sort(unique(as.integer(current_players$team_id)))
+  } else {
+    as.integer(team_id)
+  }
+
+  out <- bind_rows(lapply(advisors, advise_team))
   if (nrow(out) == 0L) .empty_trade_recs() else out
 }

@@ -89,7 +89,7 @@ O que roda, em ordem (as fases da spec):
 | 5 simulação de matchup | `matchup_simulations` — expected e win prob por confronto da semana |
 | 6-7 lineup ótimo + avaliação de roster | `lineup_evaluations` (atual vs ótimo), `lineup_recommendations` (só as trocas) |
 | 8 free agents | `free_agent_recommendations` — top ADD/DROP por Δ expected e Δ P(win) |
-| 9 trades 1×1 | `trade_recommendations` — top trocas mutuamente úteis |
+| 9 trades 1×1 | `trade_recommendations` — top trocas mutuamente úteis, por time (`recommendation_rank` recomeça em 1 por `my_team_id`) |
 | 10 persistência | `data/decision_db.rds` (dm 7 tabelas, um `run_id` por execução, acumula) |
 
 `run_decision_pipeline()` devolve (invisível) uma lista de 13 elementos — ver
@@ -158,7 +158,7 @@ res$lineup_evaluations           # lineup atual vs ótimo, por time
 res$lineup_recommendations       # só as trocas sugeridas (player_out → player_in)
 res$free_agents                  # pool de free agents com forecast
 res$free_agent_recommendations   # top ADD/DROP para o meu time
-res$trade_recommendations        # top trades 1×1 para o meu time
+res$trade_recommendations        # top trades 1×1 de todos os times (filtre por my_team_id == 4)
 res$consensus                    # consenso FFA da semana (entrada da fase 3)
 res$simulation_runs              # 1 linha: metadados deste run
 ```
@@ -185,7 +185,8 @@ tabela por `run_id`.
    Se vier vazio, o lineup atual já é o ótimo.
 2. `res$free_agent_recommendations` — ordenado por `recommendation_rank`; olhe
    `delta_expected` e `delta_win_probability`.
-3. `res$trade_recommendations` — trocas 1×1 com `my_delta_expected > 0`; priorize as
+3. `res$trade_recommendations |> filter(my_team_id == 4)` — trocas 1×1 com
+   `my_delta_expected > 0` (a tabela cobre todos os times); priorize as
    com `their_delta_expected > 0` também (plausíveis para o outro manager). Colunas:
    `give_player_id` / `receive_player_id` (ids ESPN), `my_delta_expected`,
    `their_delta_expected`, `fairness` (= `-abs(my_delta − their_delta)`),

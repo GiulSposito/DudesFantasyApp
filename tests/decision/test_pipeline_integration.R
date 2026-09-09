@@ -88,14 +88,20 @@ if (!all(file.exists(need))) {
     length(res$decision_db) == 9
   )
 
-  # --- Milestone 5: 1x1 trade recommender (spec 24-28, 43) -------------
+  # --- Milestone 5: 1x1 trade recommender, every team (spec 24-28, 43) -------
   tr <- res$trade_recommendations
+  on_roster <- function(pid, t) as.logical(mapply(
+    function(p, tt) p %in% cp$espn_id[cp$team_id == tt], pid, t, SIMPLIFY = TRUE))
+  give_ok  <- nrow(tr) == 0 || all(on_roster(tr$give_player_id, tr$my_team_id))
+  recv_off <- nrow(tr) == 0 || !any(on_roster(tr$receive_player_id, tr$my_team_id))
   stopifnot(
     identical(names(tr), names(.empty_trade_recs())),
     is.data.frame(tr),
-    nrow(tr) <= 25,
-    nrow(tr) == 0 || all(tr$my_team_id == my_tid),
-    nrow(tr) == 0 || all(tr$other_team_id != my_tid),
+    nrow(tr) == 0 || all(table(tr$my_team_id) <= 25),         # <= top_n per team
+    nrow(tr) == 0 || all(tr$my_team_id %in% cp$team_id),
+    nrow(tr) == 0 || my_tid %in% tr$my_team_id,               # my team still advised
+    nrow(tr) == 0 || length(unique(tr$my_team_id)) >= 2,      # and so are others
+    all(tr$my_team_id != tr$other_team_id),
     all(tr$my_delta_expected > 0),
     nrow(tr) == 0 || all(tr$their_delta_expected >= 0),
     all(abs(tr$my_delta_expected - (tr$my_after_expected - tr$my_before_expected)) < 1e-9),
@@ -103,10 +109,13 @@ if (!all(file.exists(need))) {
     all(abs(tr$trade_score -
             (tr$my_delta_expected + pmin(tr$my_delta_expected, tr$their_delta_expected))) < 1e-9),
     all(abs(tr$fairness + abs(tr$my_delta_expected - tr$their_delta_expected)) < 1e-9),
-    nrow(tr) == 0 || identical(tr$recommendation_rank, seq_len(nrow(tr))),
-    nrow(tr) <= 1 || all(diff(tr$trade_score) <= 1e-9),
-    nrow(tr) == 0 || all(tr$give_player_id %in% cp$espn_id[cp$team_id == my_tid]),
-    !any(tr$receive_player_id %in% cp$espn_id[cp$team_id == my_tid]),
+    # recommendation_rank restarts at 1 per my_team_id, trade_score desc within team
+    nrow(tr) == 0 || all(tapply(tr$recommendation_rank, tr$my_team_id,
+                                function(r) identical(r, seq_along(r)))),
+    nrow(tr) == 0 || all(tapply(tr$trade_score, tr$my_team_id,
+                                function(s) all(diff(s) <= 1e-9))),
+    give_ok,                                                  # give is on the advised roster
+    recv_off,                                                 # receive is not
     inherits(res$decision_db$trade_recommendations, "data.frame")
   )
 
