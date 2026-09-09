@@ -110,3 +110,26 @@ body {
 
 // analytical tables scroll inside their own box, never the page
 .cockpit-tablewrap { overflow-x: auto; }
+.cockpit-tablewrap table { min-width: 480px; }
+
+// two-column dashboard blocks collapse on narrow viewports
+.grid-2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+  align-items: start;
+}
+@media (max-width: 900px) {
+  .grid-2 { grid-template-columns: 1fr; }
+}
+
+// header wraps cleanly and the selectors stay reachable on mobile
+#cockpit-header { row-gap: 6px; }
+@media (max-width: 700px) {
+  #cockpit-header > span:first-of-type { display: none; }
+}
+
+// give the fixed drawer breathing room from the bottom nav on mobile
+@media (max-width: 600px) {
+  #cockpit-drawer { width: 100vw; }
+}

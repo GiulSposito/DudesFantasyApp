@@ -2,7 +2,7 @@
 import * as data from "../data.js";
 import * as state from "../state.js";
 import * as fmt from "../format.js";
-import { el, banner } from "../app.js";
+import { el, banner, mount } from "../app.js";
 import { probabilityBar, intervalRange, contributionBars } from "../charts.js";
 
 let selectedId = null;
@@ -17,7 +17,8 @@ async function starterContribution(teamId) {
 export async function render(root) {
   const { teamId } = state.get();
   const matchups = await data.getMatchups();
-  if (!matchups.length) { root.replaceChildren(banner("empty", "No matchups for this run.")); return; }
+  if (!matchups.length) { mount(root,
+    banner("empty", "No matchups for this run.")); return; }
 
   if (selectedId == null || !matchups.find((m) => String(m.matchup_id) === String(selectedId))) {
     const mine = matchups.find((m) => String(m.home_team_id) === String(teamId) || String(m.away_team_id) === String(teamId));
@@ -30,7 +31,8 @@ export async function render(root) {
     ...matchups.map((x) => el("option", { value: x.matchup_id, selected: String(x.matchup_id) === String(selectedId) ? "" : null },
       `${x.home_team_name} vs ${x.away_team_name}`)));
 
-  root.replaceChildren(
+  mount(root,
+    
     el("div", { style: "display:flex;gap:12px;align-items:center;margin-bottom:12px" },
       el("span", { style: "color:#9298ae;font-size:13px" }, "Matchup"), switcher),
     el("div", { class: "cockpit-card" },
@@ -45,7 +47,7 @@ export async function render(root) {
         (m.tie_probability > 0.001 ? ` · tie ${fmt.prob(m.tie_probability, 1)}` : ""))),
     el("div", { style: "font-size:11px;letter-spacing:.06em;color:#9298ae;margin:16px 0 4px" }, "SCORING RANGE (P10 – P50 – P90)"),
     el("div", { id: "mu-range" }),
-    el("div", { style: "display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:16px" },
+    el("div", { class: "grid-2", style: "margin-top:16px" },
       el("div", {}, el("div", { style: "font-size:11px;letter-spacing:.06em;color:#9298ae;margin-bottom:4px" }, m.home_team_name.toUpperCase() + " STARTERS"),
         el("div", { id: "mu-home" })),
       el("div", {}, el("div", { style: "font-size:11px;letter-spacing:.06em;color:#9298ae;margin-bottom:4px" }, m.away_team_name.toUpperCase() + " STARTERS"),

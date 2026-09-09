@@ -2,7 +2,7 @@
 import * as data from "../data.js";
 import * as state from "../state.js";
 import * as fmt from "../format.js";
-import { el, banner } from "../app.js";
+import { el, banner, mount } from "../app.js";
 import { probabilityBar } from "../charts.js";
 
 function kpi(label, value, sub) {
@@ -46,7 +46,8 @@ export async function render(root) {
     data.getMatchups(),
   ]);
 
-  if (!my) { root.replaceChildren(banner("empty", "No matchup for the selected run.")); return; }
+  if (!my) { mount(root,
+    banner("empty", "No matchup for the selected run.")); return; }
 
   const iAmHome = String(my.home_team_id) === String(teamId);
   const me = iAmHome
@@ -93,7 +94,8 @@ export async function render(root) {
       impact: `you ${fmt.deltaPts(bestTrade.my_delta_expected)} · partner ${fmt.deltaPts(bestTrade.their_delta_expected)} · score ${fmt.points(bestTrade.trade_score)}` });
   }
 
-  root.replaceChildren(
+  mount(root,
+    
     hero,
     el("div", { style: "display:flex;gap:10px;flex-wrap:wrap;margin:14px 0" },
       kpi("Win prob", fmt.prob(me.win, 0)),
@@ -102,7 +104,7 @@ export async function render(root) {
       kpi("Lineup edge", ev ? fmt.deltaPts(ev.delta_expected) : "–"),
       kpi("Best waiver", bestWaiver ? fmt.deltaPts(bestWaiver.delta_expected) : "–"),
       kpi("Best trade", bestTrade ? fmt.deltaPts(bestTrade.my_delta_expected) : "–")),
-    el("div", { style: "display:grid;grid-template-columns:1fr 1fr;gap:14px;align-items:start" },
+    el("div", { class: "grid-2" },
       el("div", {},
         el("div", { style: "font-size:11px;letter-spacing:.06em;color:#9298ae;margin-bottom:6px" }, "ACTION CENTER"),
         actions.length ? actions.map(actionCard) : banner("empty", "No lineup, waiver or trade move recommended.")),
