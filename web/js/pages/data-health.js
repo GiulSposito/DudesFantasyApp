@@ -1,33 +1,54 @@
-// Data & Model Health — full build in M7. M2 stub already close to final.
+// Data & Model Health — make missing / stale data explicit.
 import * as data from "../data.js";
-import { el, table, banner } from "../app.js";
 import * as fmt from "../format.js";
+import { el, banner, mount } from "../app.js";
+import { card, sectionLabel, statRow, statTile, rankTable } from "../components.js";
 
 export async function render(root) {
   const h = await data.getDataHealth();
-  if (!h) { root.replaceChildren(banner("empty", "No data_health row for this run.")); return; }
-  const kv = (k, v) => el("tr", {}, el("th", {}, k), el("td", {}, v));
-  root.replaceChildren(
-    el("span", { class: `cockpit-banner ${h.status === "healthy" ? "empty" : h.status}` }, `status: ${h.status}`),
-    el("table", { class: "table table-sm table-dark", style: "max-width:520px" }, el("tbody", {},
-      kv("Model", `${h.model_version} · ${h.n_sim} draws`),
-      kv("FFA snapshot", fmt.ts(h.ffa_timestamp)),
+  if (!h) { mount(root,
+    banner("empty", "No data_health row for this run.")); return; }
+
+  const ageH = (Date.now() - new Date(h.generated_at).getTime()) / 3.6e6;
+  const stale = ageH > 24;
+
+  const kv = (k, v) => el("tr", {}, el("th", { style: "color:#9298ae;font-weight:400" }, k),
+    el("td", { style: "text-align:right;font-variant-numeric:tabular-nums" }, v));
+
+  mount(root,
+    
+    el("div", { class: `cockpit-banner ${h.status === "healthy" ? "empty" : h.status === "warning" ? "stale" : "error"}` },
+      `status: ${h.status}`),
+    stale ? banner("stale", `Bundle generated ${fmt.since(h.generated_at)} — data may be out of date.`) : null,
+
+    sectionLabel("Run"),
+    statRow([
+      statTile("Model", h.model_version, `${h.n_sim} draws`),
+      statTile("Forecast players", h.n_forecast_players),
+      statTile("Mapped starters", `${h.n_mapped_starters} / ${h.n_starters}`, h.n_unmapped_starters > 0 ? `${h.n_unmapped_starters} unmapped` : "all mapped", h.n_unmapped_starters === 0),
+      statTile("Coverage ensemble", fmt.prob(h.pct_ensemble), null, true),
+    ]),
+
+    sectionLabel("Snapshots"),
+    card(el("table", { class: "table table-sm table-dark", style: "max-width:520px" }, el("tbody", {},
+      kv("FFA projections", fmt.ts(h.ffa_timestamp)),
       kv("ESPN snapshot", fmt.ts(h.espn_timestamp)),
       kv("Decision run", fmt.ts(h.decision_timestamp)),
-      kv("Forecast players", h.n_forecast_players),
-      kv("Mapped starters", `${h.n_mapped_starters} / ${h.n_starters}`),
-      kv("Unmapped players", h.n_unmapped_players),
-      kv("Coverage ensemble", fmt.prob(h.pct_ensemble)),
-      kv("Coverage sparse", fmt.prob(h.pct_sparse)),
-      kv("Coverage single", fmt.prob(h.pct_single)),
-    )),
-    el("h3", {}, "Bridge method"),
-    table([
+      kv("Bundle generated", `${fmt.ts(h.generated_at)} (${fmt.since(h.generated_at)})`)))),
+
+    sectionLabel("Coverage"),
+    card(el("table", { class: "table table-sm table-dark", style: "max-width:520px" }, el("tbody", {},
+      kv("Ensemble (4+ sources)", `${h.n_ensemble} · ${fmt.prob(h.pct_ensemble)}`),
+      kv("Sparse (2–3 sources)", `${h.n_sparse} · ${fmt.prob(h.pct_sparse)}`),
+      kv("Single (1 source)", `${h.n_single} · ${fmt.prob(h.pct_single)}`)))),
+
+    sectionLabel("ESPN → FFA bridge method"),
+    rankTable([
       { m: "direct ESPN id", n: h.n_bridge_espn_id },
       { m: "D/ST offset", n: h.n_bridge_dst_offset },
       { m: "name + position", n: h.n_bridge_name_pos },
-      { m: "override", n: h.n_bridge_override },
+      { m: "manual override", n: h.n_bridge_override },
       { m: "unmapped", n: h.n_bridge_none },
-    ], [{ key: "m", label: "Method" }, { key: "n", label: "Count" }]),
+    ], [{ key: "m", label: "Method" }, { key: "n", label: "Players", align: "right" }]),
   );
 }
