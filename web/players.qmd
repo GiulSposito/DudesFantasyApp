@@ -3,5 +3,10 @@ title: "Player Explorer"
 ---
 
 ::: {#app}
-Placeholder — implemented in M6.
+Loading…
 :::
+
+<script type="module">
+import { boot } from "./js/app.js";
+boot("players");
+</script>

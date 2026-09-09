@@ -3,5 +3,10 @@ title: "Projection Lab"
 ---
 
 ::: {#app}
-Placeholder — implemented in M7.
+Loading…
 :::
+
+<script type="module">
+import { boot } from "./js/app.js";
+boot("projections");
+</script>

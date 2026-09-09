@@ -3,5 +3,10 @@ title: "Lineup Lab"
 ---
 
 ::: {#app}
-Placeholder — implemented in M4.
+Loading…
 :::
+
+<script type="module">
+import { boot } from "./js/app.js";
+boot("lineup");
+</script>

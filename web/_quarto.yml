@@ -8,6 +8,7 @@ project:
 
 website:
   title: "Dudes Fantasy Cockpit"
+  favicon: favicon.svg
   reader-mode: false
   navbar:
     background: "#050921"

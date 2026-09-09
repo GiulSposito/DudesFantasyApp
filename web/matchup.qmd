@@ -3,5 +3,10 @@ title: "Matchup Center"
 ---
 
 ::: {#app}
-Placeholder — implemented in M3.
+Loading…
 :::
+
+<script type="module">
+import { boot } from "./js/app.js";
+boot("matchup");
+</script>
