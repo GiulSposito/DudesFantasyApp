@@ -1,0 +1,33 @@
+project:
+  type: website
+  output-dir: _site
+  resources:
+    - "data/**"
+    - "js/**"
+    - "vendor/**"
+
+website:
+  title: "Dudes Fantasy Cockpit"
+  reader-mode: false
+  navbar:
+    background: "#050921"
+    left:
+      - { text: "Command Center", href: index.qmd }
+      - { text: "Matchup",        href: matchup.qmd }
+      - { text: "Lineup",         href: lineup.qmd }
+      - { text: "Waivers",        href: waivers.qmd }
+      - { text: "Trades",         href: trades.qmd }
+      - { text: "League",         href: league.qmd }
+      - { text: "Players",        href: players.qmd }
+      - { text: "Projections",    href: projections.qmd }
+      - { text: "Data Health",    href: data-health.qmd }
+
+format:
+  html:
+    theme: [darkly, css/theme.scss]
+    page-layout: full
+    toc: false
+    anchor-sections: false
+    include-in-header: js/head.html
+    grid:
+      body-width: 1400px

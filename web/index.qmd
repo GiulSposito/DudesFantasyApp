@@ -1,0 +1,7 @@
+---
+title: "Command Center"
+---
+
+::: {#app}
+No data bundle loaded. Run `build_web_bundle()` then `quarto preview web`.
+:::

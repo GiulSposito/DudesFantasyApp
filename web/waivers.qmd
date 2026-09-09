@@ -1,0 +1,7 @@
+---
+title: "Waiver Wire Center"
+---
+
+::: {#app}
+Placeholder — implemented in M5.
+:::

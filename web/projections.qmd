@@ -1,0 +1,7 @@
+---
+title: "Projection Lab"
+---
+
+::: {#app}
+Placeholder — implemented in M7.
+:::

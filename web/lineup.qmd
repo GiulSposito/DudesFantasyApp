@@ -1,0 +1,7 @@
+---
+title: "Lineup Lab"
+---
+
+::: {#app}
+Placeholder — implemented in M4.
+:::

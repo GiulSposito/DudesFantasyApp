@@ -1,0 +1,112 @@
+/*-- scss:defaults --*/
+// Dudes Fantasy Cockpit — design tokens (docs/app_design.md).
+// Sleeper-inspired: dark navy canvas, electric cyan accent, tabular numbers.
+
+$web-font-path: "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Poppins:wght@600;700&display=swap";
+
+// Base canvas
+$body-bg:        #050921;
+$body-color:     #d8d8d8;
+
+// Bootstrap greys remapped onto the navy surface ramp
+$gray-900: #020409;
+$gray-800: #0a0f2a;
+$gray-700: #131b38;
+$gray-600: #1a2447;
+$gray-500: #242d52;
+$gray-400: #4c5579;
+$gray-300: #9298ae;
+
+// Brand / semantic
+$primary:   #00fff9;
+$secondary: #3860be;
+$success:   #28e757;
+$warning:   #ffae58;
+$danger:    #ff5b6e;
+$info:      #00baff;
+
+$link-color: $primary;
+$border-color: #343855;
+
+// Typography
+$font-family-sans-serif: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+$headings-font-family:   "Poppins", $font-family-sans-serif;
+$font-size-base:         0.95rem;
+$headings-font-weight:   600;
+
+// Components
+$border-radius:    10px;
+$border-radius-sm: 6px;
+$border-radius-lg: 16px;
+$card-bg:          rgba(19, 27, 56, 0.72);
+$card-border-color: rgba(120, 130, 170, 0.18);
+
+/*-- scss:rules --*/
+
+:root {
+  --cockpit-bg-deep: #020409;
+  --cockpit-surface-1: #0a0f2a;
+  --cockpit-surface-2: #131b38;
+  --cockpit-surface-3: #1a2447;
+  --cockpit-accent: #00fff9;
+  --cockpit-muted: #9298ae;
+
+  --pos-qb:  #f45b92;
+  --pos-rb:  #39c6b5;
+  --pos-wr:  #3db5e6;
+  --pos-te:  #f0a65a;
+  --pos-k:   #a477e8;
+  --pos-dst: #6d85a6;
+}
+
+body {
+  font-variant-numeric: tabular-nums;
+}
+
+// numbers everywhere read as a data grid
+.metric, .stat, td.num, .num {
+  font-variant-numeric: tabular-nums;
+}
+
+.cockpit-card {
+  background: var(--bs-card-bg);
+  border: 1px solid rgba(120, 130, 170, 0.18);
+  border-radius: 10px;
+  padding: 16px;
+}
+
+.pos-badge {
+  display: inline-block;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #050921;
+}
+.pos-badge.qb  { background: var(--pos-qb); }
+.pos-badge.rb  { background: var(--pos-rb); }
+.pos-badge.wr  { background: var(--pos-wr); }
+.pos-badge.te  { background: var(--pos-te); }
+.pos-badge.k   { background: var(--pos-k); }
+.pos-badge.dst { background: var(--pos-dst); }
+
+// coverage confidence dot
+.coverage-dot { font-weight: 600; }
+.coverage-dot.high   { color: var(--bs-success); }
+.coverage-dot.medium { color: var(--bs-warning); }
+.coverage-dot.low    { color: var(--bs-danger); }
+
+// app-shell status banners
+.cockpit-banner {
+  border-radius: 8px;
+  padding: 10px 14px;
+  margin-bottom: 16px;
+  font-size: 0.9rem;
+}
+.cockpit-banner.loading { background: var(--cockpit-surface-2); color: var(--cockpit-muted); }
+.cockpit-banner.error   { background: rgba(255, 91, 110, 0.15); color: #ff5b6e; }
+.cockpit-banner.stale   { background: rgba(255, 174, 88, 0.15); color: #ffae58; }
+.cockpit-banner.empty   { background: var(--cockpit-surface-2); color: var(--cockpit-muted); }
+
+// analytical tables scroll inside their own box, never the page
+.cockpit-tablewrap { overflow-x: auto; }

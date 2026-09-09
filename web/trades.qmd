@@ -1,0 +1,7 @@
+---
+title: "Trade Center"
+---
+
+::: {#app}
+Placeholder — implemented in M5.
+:::

@@ -1,0 +1,7 @@
+---
+title: "Player Explorer"
+---
+
+::: {#app}
+Placeholder — implemented in M6.
+:::

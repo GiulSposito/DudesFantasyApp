@@ -1,0 +1,7 @@
+---
+title: "Matchup Center"
+---
+
+::: {#app}
+Placeholder — implemented in M3.
+:::
