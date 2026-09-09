@@ -1,0 +1,36 @@
+{
+  "schema_version": "1.0.0",
+  "generated_at": "2026-09-09T17:12:16Z",
+  "current": {
+    "run_id": "2026-W01-preKickoff-20260909T141138",
+    "season": 2026,
+    "week": 1,
+    "tag": "preKickoff",
+    "model_version": "player-mc-v2",
+    "n_sim": 10000,
+    "created_at": "2026-09-09T17:12:00Z",
+    "ffa_timestamp": "2026-09-09T17:10:35Z",
+    "espn_timestamp": "2026-09-09T17:08:27Z"
+  },
+  "datasets": {
+    "runs": "runs.parquet",
+    "teams": "dimensions/teams.parquet",
+    "players": "dimensions/players.parquet",
+    "roster_slots": "dimensions/roster_slots.parquet",
+    "standings": "current/standings.parquet",
+    "rosters": "current/rosters.parquet",
+    "forecasts": "current/forecasts.parquet",
+    "matchups": "current/matchups.parquet",
+    "lineup_evaluations": "current/lineup_evaluations.parquet",
+    "lineup_recommendations": "current/lineup_recommendations.parquet",
+    "free_agents": "current/free_agents.parquet",
+    "waiver_recommendations": "current/waiver_recommendations.parquet",
+    "trade_recommendations": "current/trade_recommendations.parquet",
+    "data_health": "current/data_health.parquet",
+    "source_projections": "projections/source_projections.parquet",
+    "source_accuracy": "projections/source_accuracy.parquet",
+    "player_points": "history/player_points.parquet",
+    "consensus_history": "history/consensus_history.parquet"
+  },
+  "privacy": "public"
+}

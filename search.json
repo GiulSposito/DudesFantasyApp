@@ -1,0 +1,114 @@
+[
+  {
+    "objectID": "league.html",
+    "href": "league.html",
+    "title": "League Analyzer",
+    "section": "",
+    "text": "Loading…"
+  },
+  {
+    "objectID": "DEPLOY.html",
+    "href": "DEPLOY.html",
+    "title": "Deploying the cockpit",
+    "section": "",
+    "text": "The site is fully static — no server, no database, no Node build. Everything the browser needs is web/_site/ after a render.\n\n\n# from the project root, with data/*.rds up to date\nRscript -e 'source(\"R/web/build_web_bundle.R\"); build_web_bundle()'\nquarto preview web\n\n\n\nRscript R/pipeline/data_pipeline_espn.R          # refresh espn_db (edit season/week in config/config.yml)\nRscript R/decision/decision_pipeline.R           # or source() + run_decision_pipeline(...)\nRscript -e 'source(\"R/web/build_web_bundle.R\"); build_web_bundle(privacy = \"public\")'\nquarto render web                                # -&gt; web/_site/\nprivacy = \"public\" drops owner_name / owner ids. Use \"private\" (the default) only for a deploy that is not world-readable.\nThen serve web/_site/ from anywhere:\npython3 -m http.server -d web/_site 8000        # or any static host\n\n\n\nweb/data/ is gitignored and data/*.rds never leaves the machine, so Pages cannot build the bundle in CI. Publish the rendered output from your machine:\nquarto publish gh-pages web\nThis renders and pushes web/_site/ to the gh-pages branch of origin (DudesFantasyApp). Enable Pages for that branch in the repo settings. A private repo’s Pages site is still world-readable unless you are on a plan with private Pages — treat it as public and always publish with privacy = \"public\".\n\n\n\nUpload the contents of web/_site/ as a static site (direct upload, not a Git build). Same privacy = \"public\" rule applies for any world-readable host.\n\n\n\nPlotly and DuckDB-Wasm load from jsDelivr at runtime (see web/js/head.html), so the published site needs network access on first load. To make it fully offline, vendor them under web/vendor/ — see web/vendor/README.md.\n\n\n\nESPN cookies (config/config.yml, R/api/example_espn_342842788.R) or any data/*.rds. The bundle build only ever reads them; validate_web_bundle() and tests/web/test_privacy_public.R guard the output."
+  },
+  {
+    "objectID": "DEPLOY.html#local-preview",
+    "href": "DEPLOY.html#local-preview",
+    "title": "Deploying the cockpit",
+    "section": "",
+    "text": "# from the project root, with data/*.rds up to date\nRscript -e 'source(\"R/web/build_web_bundle.R\"); build_web_bundle()'\nquarto preview web"
+  },
+  {
+    "objectID": "DEPLOY.html#weekly-publish",
+    "href": "DEPLOY.html#weekly-publish",
+    "title": "Deploying the cockpit",
+    "section": "",
+    "text": "Rscript R/pipeline/data_pipeline_espn.R          # refresh espn_db (edit season/week in config/config.yml)\nRscript R/decision/decision_pipeline.R           # or source() + run_decision_pipeline(...)\nRscript -e 'source(\"R/web/build_web_bundle.R\"); build_web_bundle(privacy = \"public\")'\nquarto render web                                # -&gt; web/_site/\nprivacy = \"public\" drops owner_name / owner ids. Use \"private\" (the default) only for a deploy that is not world-readable.\nThen serve web/_site/ from anywhere:\npython3 -m http.server -d web/_site 8000        # or any static host"
+  },
+  {
+    "objectID": "DEPLOY.html#github-pages",
+    "href": "DEPLOY.html#github-pages",
+    "title": "Deploying the cockpit",
+    "section": "",
+    "text": "web/data/ is gitignored and data/*.rds never leaves the machine, so Pages cannot build the bundle in CI. Publish the rendered output from your machine:\nquarto publish gh-pages web\nThis renders and pushes web/_site/ to the gh-pages branch of origin (DudesFantasyApp). Enable Pages for that branch in the repo settings. A private repo’s Pages site is still world-readable unless you are on a plan with private Pages — treat it as public and always publish with privacy = \"public\"."
+  },
+  {
+    "objectID": "DEPLOY.html#cloudflare-pages-netlify-s3",
+    "href": "DEPLOY.html#cloudflare-pages-netlify-s3",
+    "title": "Deploying the cockpit",
+    "section": "",
+    "text": "Upload the contents of web/_site/ as a static site (direct upload, not a Git build). Same privacy = \"public\" rule applies for any world-readable host."
+  },
+  {
+    "objectID": "DEPLOY.html#runtime-dependencies",
+    "href": "DEPLOY.html#runtime-dependencies",
+    "title": "Deploying the cockpit",
+    "section": "",
+    "text": "Plotly and DuckDB-Wasm load from jsDelivr at runtime (see web/js/head.html), so the published site needs network access on first load. To make it fully offline, vendor them under web/vendor/ — see web/vendor/README.md."
+  },
+  {
+    "objectID": "DEPLOY.html#never-publish",
+    "href": "DEPLOY.html#never-publish",
+    "title": "Deploying the cockpit",
+    "section": "",
+    "text": "ESPN cookies (config/config.yml, R/api/example_espn_342842788.R) or any data/*.rds. The bundle build only ever reads them; validate_web_bundle() and tests/web/test_privacy_public.R guard the output."
+  },
+  {
+    "objectID": "index.html",
+    "href": "index.html",
+    "title": "Command Center",
+    "section": "",
+    "text": "Loading…"
+  },
+  {
+    "objectID": "data-health.html",
+    "href": "data-health.html",
+    "title": "Data & Model Health",
+    "section": "",
+    "text": "Loading…"
+  },
+  {
+    "objectID": "projections.html",
+    "href": "projections.html",
+    "title": "Projection Lab",
+    "section": "",
+    "text": "Loading…"
+  },
+  {
+    "objectID": "players.html",
+    "href": "players.html",
+    "title": "Player Explorer",
+    "section": "",
+    "text": "Loading…"
+  },
+  {
+    "objectID": "trades.html",
+    "href": "trades.html",
+    "title": "Trade Center",
+    "section": "",
+    "text": "Loading…"
+  },
+  {
+    "objectID": "matchup.html",
+    "href": "matchup.html",
+    "title": "Matchup Center",
+    "section": "",
+    "text": "Loading…"
+  },
+  {
+    "objectID": "waivers.html",
+    "href": "waivers.html",
+    "title": "Waiver Wire Center",
+    "section": "",
+    "text": "Loading…"
+  },
+  {
+    "objectID": "lineup.html",
+    "href": "lineup.html",
+    "title": "Lineup Lab",
+    "section": "",
+    "text": "Loading…"
+  }
+]
