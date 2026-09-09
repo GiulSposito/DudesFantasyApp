@@ -1,6 +1,6 @@
 {
   "schema_version": "1.0.0",
-  "generated_at": "2026-09-09T13:14:19Z",
+  "generated_at": "2026-09-09T14:10:05Z",
   "current": {
     "run_id": "2026-W01-preview-20260909T095708",
     "season": 2026,
@@ -28,7 +28,9 @@
     "trade_recommendations": "current/trade_recommendations.parquet",
     "data_health": "current/data_health.parquet",
     "source_projections": "projections/source_projections.parquet",
-    "source_accuracy": "projections/source_accuracy.parquet"
+    "source_accuracy": "projections/source_accuracy.parquet",
+    "player_points": "history/player_points.parquet",
+    "consensus_history": "history/consensus_history.parquet"
   },
   "privacy": "public"
 }

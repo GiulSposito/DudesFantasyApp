@@ -50,7 +50,7 @@ resolve_run <- function(decision_db, run_id = NULL) {
 
 reset_output <- function(output_dir) {
   unlink(output_dir, recursive = TRUE)
-  for (d in c("", "dimensions", "current", "projections")) {
+  for (d in c("", "dimensions", "current", "projections", "history")) {
     dir.create(file.path(output_dir, d), recursive = TRUE, showWarnings = FALSE)
   }
 }
@@ -97,6 +97,9 @@ build_web_bundle <- function(run_id = NULL, result = NULL,
 
   put("source_projections", build_source_projections(src, run), "projections/source_projections.parquet")
   put("source_accuracy",    build_source_accuracy(src, run),    "projections/source_accuracy.parquet")
+
+  put("player_points",      build_player_points(src, run),      "history/player_points.parquet")
+  put("consensus_history",  build_consensus_history(src, run),  "history/consensus_history.parquet")
 
   write_manifest(run, paths, privacy, output_dir)
 

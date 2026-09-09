@@ -43,6 +43,12 @@ export function banner(kind, msg) {
   return el("div", { class: `cockpit-banner ${kind}` }, msg);
 }
 
+// Replace #app content, dropping null/false entries (native replaceChildren
+// would stringify them). Pages call this instead of root.replaceChildren.
+export function mount(root, ...kids) {
+  root.replaceChildren(...kids.flat(Infinity).filter((k) => k != null && k !== false));
+}
+
 // ---- shell -------------------------------------------------------------
 
 let _teams = [];

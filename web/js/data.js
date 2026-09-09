@@ -138,12 +138,24 @@ export async function getFreeAgents({ position = "ALL" } = {}) {
   return q(sql, "free_agents");
 }
 
+export async function getForecast(ffaId) {
+  const rows = await q(`SELECT * FROM forecasts WHERE ffa_id = '${ffaId}' LIMIT 1`, "forecasts");
+  return rows[0] || null;
+}
+
 export async function getSourceProjections(ffaId) {
   return q(`SELECT * FROM source_projections WHERE ffa_id = '${ffaId}' ORDER BY data_src`, "source_projections");
 }
 
 export async function getSourceAccuracy() {
   return q("SELECT * FROM source_accuracy ORDER BY season DESC, data_src, position", "source_accuracy");
+}
+
+export async function getConsensusHistory({ season = null, limit = 4000 } = {}) {
+  let sql = "SELECT season, week, position, coverage_class, source_sd, abs_residual, residual FROM consensus_history WHERE week > 0";
+  if (season) sql += ` AND season = ${Number(season)}`;
+  sql += ` ORDER BY season DESC, week DESC LIMIT ${Number(limit)}`;
+  return q(sql, "consensus_history");
 }
 
 export async function getDataHealth() {
