@@ -31,20 +31,26 @@ Editar o bloco `# MASTER PARAMETERS ####` no topo de `R/pipeline/data_pipeline.R
 .tag    <- "preKickoff"  # ver "Vocabulário de tag" abaixo
 ```
 
-### 2. Ingestão FFA + ESPN
+### 2. Rodar a jornada semanal
 
 ``` r
 source("R/pipeline/data_pipeline.R")
 ```
 
-Isso roda, em sequência:
+`data_pipeline.R` orquestra a jornada inteira com um único bloco de parâmetros:
+**ingestão → decision engine → web bundle → publish**. Roda, em sequência:
 
 - `importFfa()` --- scrape do `ffanalytics` (~10 sites: CBS, ESPN, FantasyPros, FFToday, FleaFlicker, FanDuel, NFL, RTSports, Walterfootball, ...), calcula as projeções de consenso com `config/score_settings.yml`, e faz upsert em `data/ffa_db.rds` (5 tabelas). Leva alguns minutos. **Falha de site é silenciosa e parcial** --- se uma fonte cair, o scrape continua sem ela; confira a contagem de `data_src` no fim.
 - `importEspn()` --- um snapshot combinado da liga + o pool de jogadores via API ESPN, upsert em `data/espn_db.rds` (12 tabelas).
+- `run_decision_pipeline(.season, .week, .tag)` --- passo 4 abaixo; devolve `res`.
+- `build_web_bundle(result = res, privacy = "public")` --- passo 7 abaixo.
+- `quarto publish gh-pages web` --- render + push para `origin/gh-pages`. Pule com `.publish <- FALSE` no bloco de parâmetros.
 
 Cache cru de cada resposta em `data/temp/*.rds` (permite reprocessar sem rede). ERDs em `export/ffa_db.png` e `data/temp/espn_db.png`.
 
-**Ambos gravam sob a mesma `.tag`.** Se a semana já foi ingerida sob essa tag, o upsert atualiza as linhas daquele `timestamp` e adiciona um novo --- múltiplos snapshots da mesma `season/week/tag` coexistem; o consumo sempre pega `max(timestamp)`.
+**A ingestão grava sob a mesma `.tag`.** Se a semana já foi ingerida sob essa tag, o upsert atualiza as linhas daquele `timestamp` e adiciona um novo --- múltiplos snapshots da mesma `season/week/tag` coexistem; o consumo sempre pega `max(timestamp)`.
+
+Para rodar um estágio isolado (re-simular sem re-scrape, republicar sem re-simular, etc.), chame a função do estágio direto --- ver passos 4 e 7.
 
 ### 3. `analytical_db` --- **não mexer no ciclo normal**
 
@@ -52,12 +58,16 @@ Cache cru de cada resposta em `data/temp/*.rds` (permite reprocessar sem rede). 
 
 ### 4. Simulação + recomendações (a decision engine)
 
+Já roda dentro do passo 2. Para rodar isolada (re-simular sobre snapshots já ingeridos):
+
 ``` r
 source("R/decision/decision_pipeline.R")
 res <- run_decision_pipeline(2026, 1, "preKickoff")   # season, week, tag
 ```
 
-Defaults: `n_sim = 10000`, `seed = 1234`, e `matchups` / `lineups` / `free_agents` / `trades` todos `TRUE`. Free agents e trades usam `config$myTeamEspnId` (= 4) como time alvo.
+Defaults: `n_sim = 10000`, `seed = 1234`, `use_realized = TRUE`, e `matchups` / `lineups` / `free_agents` / `trades` todos `TRUE`. Free agents e trades usam `config$myTeamEspnId` (= 4) como time alvo.
+
+**`use_realized = TRUE`** (spec §11.3): jogadores cujo jogo da NFL já travou (`lineup_locked` da ESPN) entram no Monte Carlo com os pontos reais como valor fixo, e ficam fora de troca de lineup / trade / add-drop. Sem nada travado (snapshot pré-jogos) o resultado é idêntico a `FALSE`. Requer um snapshot ESPN ingerido com o código que persiste `lineup_locked` (ingestões antigas não têm a coluna --- tratadas como nada travado).
 
 O que roda, em ordem (as fases da spec):
 
@@ -97,6 +107,8 @@ source("tests/decision/run_all.R")
 
 ### 7. Web bundle + publicação do cockpit
 
+Já roda dentro do passo 2 (`build_web_bundle(result = res, privacy = "public")` + `quarto publish gh-pages web`). Esta seção é para republicar isolado.
+
 A camada web (`web/`) é um site Quarto estático. Ela **não** roda análise --- só lê os `dm` de `data/*.rds` do `run_id` mais recente da decision engine e escreve Parquet + `manifest.json` em `web/data/`. Rodar depois do passo 4.
 
 ``` bash
@@ -128,6 +140,8 @@ A `.tag` marca *quando* na semana os dados foram capturados. É parte da chave p
 |---------------------|---------------------------------------------------|
 | `preview` | projeções do começo da semana |
 | `preKickoff` | snapshot logo antes do primeiro jogo (ad-hoc; usado a partir de 2026) |
+| `preTNF` / `posTNF` | antes / depois do jogo de quinta (Thursday Night Football) --- com `posTNF` alguns jogadores já entram com pontos reais (spec §11.3) |
+| `preMNF` | antes do jogo de segunda |
 | `final` | depois de todos os jogos; único tag que puxa recaps de matchup (só no pipeline NFL, hoje morto) |
 | `season` | snapshot de nível temporada, gravado em `week = 0` |
 

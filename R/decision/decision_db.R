@@ -112,6 +112,21 @@ build_decision_db <- function(simulation_run, player_forecasts,
   db
 }
 
+# add any column present on one side but not the other (typed NA) so runs
+# persisted under different code versions still upsert cleanly.
+.reconcile_dm_cols <- function(a, b) {
+  fill <- function(dm_, tbl, col, proto) {
+    na1 <- proto[NA_integer_]
+    dm_ |> dm_zoom_to(!!tbl) |> mutate(!!col := na1) |> dm_update_zoomed()
+  }
+  for (t in intersect(names(a), names(b))) {
+    ca <- colnames(a[[t]]); cb <- colnames(b[[t]])
+    for (col in setdiff(cb, ca)) a <- fill(a, t, col, b[[t]][[col]])
+    for (col in setdiff(ca, cb)) b <- fill(b, t, col, a[[t]][[col]])
+  }
+  list(a = a, b = b)
+}
+
 # upsert a dm into an on-disk .rds (mirrors R/pipeline/data_pipeline_espn.R:23).
 # If the on-disk dm has a different set of tables (schema evolved across
 # milestones), overwrite instead of upsert - the older runs carried fewer tables
@@ -120,7 +135,8 @@ updateDB <- function(db, db_file) {
   if (file.exists(db_file)) {
     old <- readRDS(db_file)
     if (setequal(names(old), names(db))) {
-      db <- old |> dm_rows_upsert(db, in_place = FALSE)
+      rc <- .reconcile_dm_cols(old, db)
+      db <- dm_rows_upsert(rc$a, rc$b, in_place = FALSE)
     } else {
       message(glue::glue(
         "decision_db schema changed (now: {paste(names(db), collapse = ', ')}); ",

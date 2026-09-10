@@ -19,11 +19,27 @@ source("./R/api/espn_fantasy_client.R")
 
 # ---- inline helpers (mirror data_pipeline.R conventions) ---------------------
 
+# add any column present on one side but not the other (typed NA) so two dm
+# snapshots taken under different code versions still upsert cleanly (schema
+# drift is routine here - a new field lands every season or two).
+.reconcile_dm_cols <- function(a, b) {
+  fill <- function(dm_, tbl, col, proto) {
+    na1 <- proto[NA_integer_]
+    dm_ |> dm_zoom_to(!!tbl) |> mutate(!!col := na1) |> dm_update_zoomed()
+  }
+  for (t in intersect(names(a), names(b))) {
+    ca <- colnames(a[[t]]); cb <- colnames(b[[t]])
+    for (col in setdiff(cb, ca)) a <- fill(a, t, col, b[[t]][[col]])
+    for (col in setdiff(ca, cb)) b <- fill(b, t, col, a[[t]][[col]])
+  }
+  list(a = a, b = b)
+}
+
 # upsert a dm into an on-disk .rds (update existing rows by PK, insert new ones)
 updateDB <- function(db, db_file) {
   if (file.exists(db_file)) {
-    db <- readRDS(db_file) |>
-      dm_rows_upsert(db, in_place = FALSE)
+    rc <- .reconcile_dm_cols(readRDS(db_file), db)
+    db <- dm_rows_upsert(rc$a, rc$b, in_place = FALSE)
   }
   saveRDS(db, db_file)
   return(db)
@@ -164,6 +180,14 @@ buildEspnDB <- function(snap, pool, .season, .week, .tag, .timestamp) {
   # both projected (stat_source_id == 1) and actual (== 0) live here; `week` is
   # the per-record scoring period (varies), not the run week. season pinned to
   # the run; the record's own season kept as `stat_season`.
+  # scrape-time roster-lock state (ESPN lineupLocked): TRUE once the player's NFL
+  # game has kicked off. Sourced from the player pool, per-player. Used by the
+  # decision engine to fold realized points in for players who have played.
+  pool_locked <- pool$players |>
+    select(player_id, any_of("lineup_locked")) |>
+    distinct(player_id, .keep_all = TRUE)
+  if (!"lineup_locked" %in% names(pool_locked)) pool_locked$lineup_locked <- NA
+
   espn_players_points <- pool$stats |>
     select(-any_of(c("stats", "applied_stats"))) |>
     mutate(
@@ -175,11 +199,12 @@ buildEspnDB <- function(snap, pool, .season, .week, .tag, .timestamp) {
       stat_source_id     = coalesce(as.integer(stat_source_id), -1L),
       stat_split_type_id = coalesce(as.integer(stat_split_type_id), -1L)
     ) |>
+    left_join(pool_locked, by = "player_id") |>
     distinct(season, week, tag, timestamp, player_id,
              stat_source_id, stat_split_type_id, .keep_all = TRUE) |>
     select(season, week, tag, timestamp, player_id,
            stat_source_id, stat_split_type_id,
-           stat_season, pro_team_id, fantasy_points,
+           stat_season, pro_team_id, fantasy_points, lineup_locked,
            player_name, position, pro_team)
 
   espn_rosters <- .espn_require_rows(snap$rosters, "rosters") |>
@@ -188,7 +213,7 @@ buildEspnDB <- function(snap, pool, .season, .week, .tag, .timestamp) {
     distinct(season, week, tag, timestamp, team_id, player_id, .keep_all = TRUE) |>
     select(season, week, tag, timestamp, team_id, team_name, player_id, player_name,
            position, pro_team, lineup_slot, lineup_slot_id,
-           is_starter, is_bench, is_ir,
+           is_starter, is_bench, is_ir, any_of("lineup_locked"),
            acquisition_type, acquisition_date, percent_owned, percent_started,
            total_points, applied_stat_total, injury_status, eligible_slot_ids)
 

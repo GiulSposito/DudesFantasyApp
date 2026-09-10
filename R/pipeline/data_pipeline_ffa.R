@@ -16,11 +16,27 @@ source("./R/api/ffa_projection.R")
 
 # ---- helpers ---------------------------------------------------------------
 
+# add any column present on one side but not the other (typed NA) so two dm
+# snapshots taken under different code versions still upsert cleanly (schema
+# drift is routine here - a new field lands every season or two).
+.reconcile_dm_cols <- function(a, b) {
+  fill <- function(dm_, tbl, col, proto) {
+    na1 <- proto[NA_integer_]
+    dm_ |> dm_zoom_to(!!tbl) |> mutate(!!col := na1) |> dm_update_zoomed()
+  }
+  for (t in intersect(names(a), names(b))) {
+    ca <- colnames(a[[t]]); cb <- colnames(b[[t]])
+    for (col in setdiff(cb, ca)) a <- fill(a, t, col, b[[t]][[col]])
+    for (col in setdiff(ca, cb)) b <- fill(b, t, col, a[[t]][[col]])
+  }
+  list(a = a, b = b)
+}
+
 # update existing rows by PK, insert new ones, persist to an on-disk .rds
 updateDB <- function(db, db_file){
   if(file.exists(db_file)){
-    db <- readRDS(db_file) |>
-      dm_rows_upsert(db, in_place = F)
+    rc <- .reconcile_dm_cols(readRDS(db_file), db)
+    db <- dm_rows_upsert(rc$a, rc$b, in_place = F)
   }
   saveRDS(db, db_file)
   return(db)
