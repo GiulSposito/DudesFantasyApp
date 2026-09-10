@@ -57,6 +57,26 @@ select_espn_snapshot <- function(espn_db, season, week, tag) {
   rosters <- rosters |>
     filter(timestamp == ts) |>
     mutate(player_id = as.integer(player_id))
+  # lineup_locked may be absent on snapshots scraped before it was persisted
+  if (!"lineup_locked" %in% names(rosters)) rosters$lineup_locked <- NA
+
+  # realized points: one row per player with a settled (stat_source_id == 0)
+  # actual for the week, plus whether their game has locked (spec: realized-points
+  # folding). Empty tibble if the points table has no matching rows.
+  realized <- espn_db$espn_players_points |>
+    filter(season == !!season, week == !!week, tag == !!tag, stat_source_id == 0L)
+  if (!"lineup_locked" %in% colnames(realized)) realized$lineup_locked <- NA
+  realized <- if (nrow(realized) == 0L) {
+    tibble(player_id = integer(), actual_points = double(), is_locked = logical())
+  } else {
+    realized |>
+      filter(timestamp == max(timestamp)) |>
+      # week/tag already scope to one scoring period => one row per player
+      distinct(player_id, .keep_all = TRUE) |>
+      transmute(player_id     = as.integer(player_id),
+                actual_points = fantasy_points,
+                is_locked     = coalesce(as.logical(lineup_locked), FALSE))
+  }
 
   # the snapshot carries the whole-season schedule; keep only this week's games
   matchups <- espn_db$espn_matchups |>
@@ -75,6 +95,7 @@ select_espn_snapshot <- function(espn_db, season, week, tag) {
     rosters      = rosters,
     matchups     = matchups,
     injury       = injury,
+    realized     = realized,
     roster_slots = espn_db$espn_roster_slots |> filter(season == !!season),
     teams        = espn_db$espn_teams |> filter(season == !!season),
     # the fantasy-relevant player universe (free agents = players - rosters), spec 13.

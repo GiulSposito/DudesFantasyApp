@@ -88,6 +88,39 @@ simulate_players <- function(consensus, history, n_sim = 10000,
     select(-.sim)
 }
 
+# --- realized-points folding -------------------------------------------------
+
+# Replace the projection distribution with a degenerate one at the player's
+# realized fantasy points, for players whose NFL game has already locked (spec:
+# realized-points folding, legacy R_old/simulation/points_simulation_v6.R). Every
+# downstream consumer reads only `draws` / `sim_mean`, so a constant draw vector
+# flows through matchup win probabilities and lineup/FA/trade evaluation with no
+# other change.
+#
+# sims     : output of simulate_players().
+# realized : tibble(ffa_id int, actual_points dbl) - the players who have played.
+# Returns sims with `draws` overwritten and `is_realized` set for those players;
+# every other row (including its draws) is byte-identical to the input.
+apply_realized_points <- function(sims, realized, n_sim) {
+  realized <- realized |>
+    filter(!is.na(ffa_id), !is.na(actual_points)) |>
+    distinct(ffa_id, actual_points)
+
+  out <- sims |>
+    left_join(realized, by = "ffa_id") |>
+    mutate(is_realized = !is.na(actual_points))
+
+  if (any(out$is_realized)) {
+    out$draws[out$is_realized] <- lapply(
+      out$actual_points[out$is_realized], function(v) rep(v, n_sim)
+    )
+    out$residual_pool_level[out$is_realized] <- NA_integer_
+    out$residual_pool_n[out$is_realized]     <- NA_integer_
+  }
+
+  out |> select(-actual_points)
+}
+
 # --- forecast summary (spec 11.2) --------------------------------------------
 
 .q_probs <- c(p05 = .05, p10 = .10, p25 = .25, p50 = .50,
@@ -99,6 +132,7 @@ summarise_forecasts <- function(sims, run_id) {
   sims |>
     mutate(
       run_id   = run_id,
+      is_realized = if ("is_realized" %in% names(sims)) coalesce(is_realized, FALSE) else FALSE,
       sim_mean = map_dbl(draws, mean),
       sim_sd   = map_dbl(draws, sd),
       qs       = map(draws, ~ as_tibble_row(quantile(.x, .q_probs, names = FALSE) |>
@@ -114,5 +148,5 @@ summarise_forecasts <- function(sims, run_id) {
            projection, n_sources, coverage_class, source_sd, source_mad,
            sim_mean, sim_sd, p05, p10, p25, p50, p75, p90, p95,
            prob_gt_10, prob_gt_15, prob_gt_20, prob_gt_25, prob_gt_30,
-           residual_pool_level, residual_pool_n)
+           residual_pool_level, residual_pool_n, is_realized)
 }

@@ -93,11 +93,13 @@ bridge_espn_to_ffa <- function(rosters, analytical_db, ffa_db,
 # --- current league state (spec 12) ------------------------------------------
 
 # espn_snap: from select_espn_snapshot(). player_forecasts: M1 output for the run.
+# bridged: optional pre-computed bridge_espn_to_ffa(espn_snap$rosters, ...) to
+#   avoid bridging twice in one pipeline run.
 # Returns current_players - 1 row per ESPN roster player.
 build_current_league_state <- function(espn_snap, player_forecasts,
-                                       analytical_db, ffa_db) {
+                                       analytical_db, ffa_db, bridged = NULL) {
 
-  bridged <- bridge_espn_to_ffa(espn_snap$rosters, analytical_db, ffa_db)
+  bridged <- bridged %||% bridge_espn_to_ffa(espn_snap$rosters, analytical_db, ffa_db)
 
   fc <- player_forecasts |>
     select(ffa_id, projection, sim_mean, sim_sd, p10, p50, p90,
@@ -106,8 +108,12 @@ build_current_league_state <- function(espn_snap, player_forecasts,
   inj <- espn_snap$injury |>
     select(player_id, inj_status = injury_status, injured, active)
 
+  rlz <- (espn_snap$realized %||% tibble(player_id = integer(), is_locked = logical())) |>
+    select(player_id, is_locked)
+
   bridged |>
     left_join(inj, by = "player_id") |>
+    left_join(rlz, by = "player_id") |>
     left_join(fc, by = "ffa_id") |>
     transmute(
       season = as.integer(espn_snap$season),
@@ -123,6 +129,7 @@ build_current_league_state <- function(espn_snap, player_forecasts,
       is_starter, is_bench, is_ir,
       injury_status = coalesce(inj_status, injury_status),
       injured, active,
+      is_locked = coalesce(is_locked, FALSE),
       projection, sim_mean, sim_sd, p10, p50, p90, coverage_class, n_sources
     )
 }

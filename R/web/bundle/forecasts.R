@@ -14,8 +14,10 @@ build_forecasts <- function(src, run) {
               ffa_team = team) |>
     distinct(ffa_id, .keep_all = TRUE)
 
-  src$decision_db$player_forecasts |>
-    filter(run_id == run$run_id) |>
+  fc <- src$decision_db$player_forecasts |> filter(run_id == run$run_id)
+  if (!"is_realized" %in% names(fc)) fc$is_realized <- FALSE
+
+  fc |>
     left_join(espn_nm, by = "espn_id") |>
     left_join(ffa_nm, by = "ffa_id") |>
     mutate(
@@ -33,6 +35,7 @@ build_forecasts <- function(src, run) {
       p05, p10, p25, p50, p75, p90, p95,
       prob_gt_10, prob_gt_15, prob_gt_20, prob_gt_25, prob_gt_30,
       residual_pool_level, residual_pool_n,
+      is_realized,
       historical_bias
     )
 }

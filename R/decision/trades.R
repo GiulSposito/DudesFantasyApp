@@ -68,9 +68,15 @@ recommend_trades <- function(current_players, espn_snap, draws_by_ffa,
                              max_receive_per_pos = 5L,
                              top_n               = 25L,
                              min_delta           = 1e-6,
-                             min_their_delta     = 0) {
+                             min_their_delta     = 0,
+                             locked_ffa          = integer()) {
 
   slots <- espn_snap$roster_slots
+  if (!"is_locked" %in% names(current_players)) current_players$is_locked <- FALSE
+  # players whose game has begun: cannot be given or received, must stay started
+  locked_all <- union(as.integer(locked_ffa),
+                      current_players$ffa_id[coalesce(current_players$is_locked, FALSE)])
+  pin_of <- function(base) intersect(locked_all, base$ffa_id)
 
   # bidirectional team -> opponent map (spec 41) - same as recommend_lineups()
   mu  <- espn_snap$matchups |> distinct(home_team_id, away_team_id)
@@ -119,7 +125,8 @@ recommend_trades <- function(current_players, espn_snap, draws_by_ffa,
   # --- my baseline ---------------------------------------------------------
   my_base    <- base_roster(tid)
   my_opp_ffa <- starters_ffa(my_opp)
-  my_before  <- evaluate_roster(my_base, slots, draws_by_ffa, my_opp_ffa)
+  my_pin     <- pin_of(my_base)
+  my_before  <- evaluate_roster(my_base, slots, draws_by_ffa, my_opp_ffa, pinned_ffa = my_pin)
   n_before_me <- nrow(my_before$optimal_lineup[[1]])
 
   # GIVE pool: the max_give weakest movable players (you trade from surplus, and
@@ -127,7 +134,7 @@ recommend_trades <- function(current_players, espn_snap, draws_by_ffa,
   # max_receive_per_pos evaluate_roster() calls per advised team. Widen max_give /
   # max_receive_per_pos if the surplus heuristic misses a good trade.
   give_pool <- my_base |>
-    filter(has_draws(ffa_id)) |>
+    filter(has_draws(ffa_id), !ffa_id %in% locked_all) |>
     arrange(sim_mean) |>
     head(max_give)
   if (nrow(give_pool) == 0L) return(.empty_trade_recs())
@@ -146,10 +153,11 @@ recommend_trades <- function(current_players, espn_snap, draws_by_ffa,
 
     p_base     <- base_roster(pt)
     p_opp_ffa  <- starters_ffa(p_opp)
-    p_before   <- evaluate_roster(p_base, slots, draws_by_ffa, p_opp_ffa)
+    p_pin      <- pin_of(p_base)
+    p_before   <- evaluate_roster(p_base, slots, draws_by_ffa, p_opp_ffa, pinned_ffa = p_pin)
     n_before_them <- nrow(p_before$optimal_lineup[[1]])
 
-    recv_all <- p_base |> filter(has_draws(ffa_id))
+    recv_all <- p_base |> filter(has_draws(ffa_id), !ffa_id %in% locked_all)
     if (nrow(recv_all) == 0L) next
 
     for (gi in seq_len(nrow(give_pool))) {
@@ -174,7 +182,7 @@ recommend_trades <- function(current_players, espn_snap, draws_by_ffa,
 
         my_cand  <- bind_rows(my_kept, p_base |> filter(ffa_id == r$ffa_id))
         my_after <- suppressWarnings(
-          evaluate_roster(my_cand, slots, draws_by_ffa, my_opp_ffa))
+          evaluate_roster(my_cand, slots, draws_by_ffa, my_opp_ffa, pinned_ffa = my_pin))
         if (nrow(my_after$optimal_lineup[[1]]) < n_before_me) next   # roster went illegal (spec 21)
 
         d_me <- my_after$expected_points - my_before$expected_points
@@ -183,7 +191,7 @@ recommend_trades <- function(current_players, espn_snap, draws_by_ffa,
         their_cand  <- bind_rows(p_base |> filter(ffa_id != r$ffa_id),
                                  my_base |> filter(ffa_id == g$ffa_id))
         their_after <- suppressWarnings(
-          evaluate_roster(their_cand, slots, draws_by_ffa, p_opp_ffa))
+          evaluate_roster(their_cand, slots, draws_by_ffa, p_opp_ffa, pinned_ffa = p_pin))
         if (nrow(their_after$optimal_lineup[[1]]) < n_before_them) next
 
         d_them <- their_after$expected_points - p_before$expected_points

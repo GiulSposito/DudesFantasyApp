@@ -614,6 +614,7 @@ espn_draft <- function(client = espn_client(), resolve_players = TRUE) {
       active = .espn_lgl(p$active),
       injured = .espn_lgl(p$injured),
       droppable = .espn_lgl(p$droppable),
+      lineup_locked = .espn_lgl(pool$lineupLocked),
       eligible_slot_ids = .espn_compact_chr(p$eligibleSlots),
       stats_raw = list(p$stats %||% list())
     )

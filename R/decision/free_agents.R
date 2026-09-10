@@ -39,6 +39,9 @@ get_free_agents <- function(espn_snap, player_forecasts, analytical_db, ffa_db,
                             min_sim_mean = 0,
                             exclude_status = c("OUT", "IR", "DOUBTFUL")) {
 
+  realized <- espn_snap$realized %||%
+    tibble(player_id = integer(), actual_points = double(), is_locked = logical())
+
   raw <- espn_snap$players |>
     mutate(player_id = as.integer(player_id)) |>
     anti_join(distinct(espn_snap$rosters, player_id), by = "player_id")
@@ -60,10 +63,15 @@ get_free_agents <- function(espn_snap, player_forecasts, analytical_db, ffa_db,
 
   slot_map <- .fa_slot_map(espn_snap$rosters)
 
+  rlz <- realized |>
+    transmute(player_id = as.integer(player_id), actual_points,
+              is_locked = coalesce(is_locked, FALSE))
+
   out <- bridged |>
     left_join(inj, by = "player_id") |>
     left_join(fc, by = "ffa_id") |>
     left_join(slot_map, by = "position") |>
+    left_join(rlz, by = "player_id") |>
     transmute(
       season = as.integer(espn_snap$season),
       week   = as.integer(espn_snap$week),
@@ -75,8 +83,19 @@ get_free_agents <- function(espn_snap, player_forecasts, analytical_db, ffa_db,
       eligible_slot_ids,
       projection, sim_mean, p10, p50, p90, coverage_class,
       injury_status = inj_status, injured, active,
-      bridge_method
+      bridge_method,
+      is_locked = coalesce(is_locked, FALSE), actual_points
     ) |>
+    # realized-points folding: a free agent whose game has locked enters at their
+    # actual points (degenerate distribution), same as rostered players.
+    mutate(
+      .realized = is_locked & !is.na(actual_points),
+      sim_mean = if_else(.realized, actual_points, sim_mean),
+      p10 = if_else(.realized, actual_points, p10),
+      p50 = if_else(.realized, actual_points, p50),
+      p90 = if_else(.realized, actual_points, p90)
+    ) |>
+    select(-.realized, -actual_points) |>
     filter(
       !is.na(ffa_id), !is.na(sim_mean), !is.na(eligible_slot_ids),
       sim_mean >= min_sim_mean,
@@ -127,7 +146,8 @@ recommend_free_agents <- function(current_players, free_agents, espn_snap,
                                   max_adds_per_pos = 5L,
                                   max_drops        = 10L,
                                   top_n            = 25L,
-                                  min_delta        = 1e-6) {
+                                  min_delta        = 1e-6,
+                                  locked_ffa       = integer()) {
 
   slots <- espn_snap$roster_slots
   tid   <- as.integer(team_id)
@@ -156,25 +176,35 @@ recommend_free_agents <- function(current_players, free_agents, espn_snap,
     base <- my |> filter(!is.na(ffa_id), !is.na(sim_mean), !is_ir)
   }
   base <- base |>
-    select(ffa_id, pos, position, sim_mean, eligible_slot_ids, player_name, espn_id)
+    mutate(is_locked = if ("is_locked" %in% names(base)) coalesce(is_locked, FALSE) else FALSE) |>
+    select(ffa_id, pos, position, sim_mean, eligible_slot_ids, player_name, espn_id, is_locked)
 
-  before  <- evaluate_roster(base, slots, draws_by_ffa, opp_ffa)
+  # locked players cannot be dropped or benched - pin them into every lineup
+  pinned_team <- base$ffa_id[base$is_locked | base$ffa_id %in% locked_ffa]
+
+  before  <- evaluate_roster(base, slots, draws_by_ffa, opp_ffa, pinned_ffa = pinned_team)
   n_before <- nrow(before$optimal_lineup[[1]])
 
   # DROP pool: the weakest kept players + roster dead weight (unmapped / no
-  # forecast, not IR) - the latter models "roster full, drop the stash" (spec 21)
+  # forecast, not IR) - the latter models "roster full, drop the stash" (spec 21).
+  # Locked players excluded - their game is over, dropping them is not a decision.
   drop_pool <- bind_rows(
-    base |> arrange(sim_mean) |> head(max_drops),
+    base |> filter(!is_locked, !ffa_id %in% locked_ffa) |> arrange(sim_mean) |> head(max_drops),
     my |> filter(is.na(ffa_id) | is.na(sim_mean), !is_ir) |>
       transmute(ffa_id = as.integer(ffa_id), pos, position, sim_mean = NA_real_,
                 eligible_slot_ids, player_name, espn_id)
   ) |> distinct(espn_id, .keep_all = TRUE)
 
   # ADD pool: top max_adds_per_pos free agents per position that (a) have a draw
-  # vector and (b) are not already on the roster (spec 21)
+  # vector, (b) are not already on the roster, and (c) have not already played
+  # (a locked free agent gains nothing this week) (spec 21)
+  fa_locked <- if ("is_locked" %in% names(free_agents)) free_agents$is_locked else FALSE
   add_pool <- free_agents |>
+    mutate(.locked = fa_locked) |>
     filter(as.character(ffa_id) %in% names(draws_by_ffa),
-           !ffa_id %in% base$ffa_id) |>
+           !ffa_id %in% base$ffa_id, !ffa_id %in% locked_ffa,
+           !coalesce(.locked, FALSE)) |>
+    select(-.locked) |>
     group_by(pos) |>
     slice_max(sim_mean, n = max_adds_per_pos, with_ties = FALSE) |>
     ungroup()
@@ -194,7 +224,8 @@ recommend_free_agents <- function(current_players, free_agents, espn_snap,
     for (ai in seq_len(nrow(add_pool))) {
       a    <- add_pool[ai, ]
       cand <- bind_rows(kept, fa_row(a))
-      after <- suppressWarnings(evaluate_roster(cand, slots, draws_by_ffa, opp_ffa))
+      after <- suppressWarnings(evaluate_roster(cand, slots, draws_by_ffa, opp_ffa,
+                                                pinned_ffa = pinned_team))
       if (nrow(after$optimal_lineup[[1]]) < n_before) next   # roster went illegal (spec 21)
 
       rows[[length(rows) + 1L]] <- tibble(

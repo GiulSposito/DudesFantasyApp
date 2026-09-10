@@ -613,7 +613,49 @@ prob_gt_15
 prob_gt_20
 prob_gt_25
 prob_gt_30
+
+is_realized
 ```
+
+---
+
+## 11.3 Realized-points folding
+
+Retoma um comportamento do simulador legado
+(`R_old/simulation/points_simulation_v6.R`): no meio da semana, jogadores cujo
+jogo da NFL **já começou** entram no Monte Carlo como um **valor fixo** — os
+pontos de fantasy que realmente fizeram — e não como distribuição de projeção.
+Os demais jogadores mantêm o range de seeds normal. Assim a pontuação projetada
+do time e as probabilidades de vitória/derrota ficam mais realistas conforme a
+semana avança, e exatas quando todos os jogos terminam.
+
+Sinal de "já jogou": a flag `lineup_locked` da ESPN (`playerPoolEntry.lineupLocked`),
+persistida em `espn_db$espn_rosters` e `espn_db$espn_players_points`. É o análogo
+direto do `!isEditable` do NFL-Fantasy legado: fica `TRUE` quando o jogo do
+jogador começa. A linha `stat_source_id == 0` de `espn_players_points` traz o
+valor realizado (`fantasy_points`, mesma escala de §3).
+
+Definição: um jogador é **realized** na run quando `lineup_locked == TRUE` **e**
+existe um valor actual para a semana. Locked sem actual ainda (lag da ESPN no
+kickoff) → mantém a projeção e emite `warning`.
+
+Implementação (`apply_realized_points()`, entre `simulate_players()` e
+`draws_by_ffa` / `summarise_forecasts()`): substitui `draws` por
+`rep(actual_points, n_sim)`. Como todo o downstream consome apenas
+`draws_by_ffa` / `sim_mean`, o valor realizado flui pelas simulações de matchup,
+otimização de lineup, free agents e trades sem nenhuma mudança de cálculo.
+`sim_mean == actual_points`, `sim_sd == 0`, todos os quantis iguais.
+
+Escopo: jogadores de roster **e** free agents (o valor realizado é dobrado nos
+dois). Controlado por `run_decision_pipeline(use_realized = TRUE)` — `FALSE`
+reproduz o comportamento só-projeção. Nada travado → resultado idêntico ao de
+antes.
+
+Elegibilidade de recomendação: um jogador locked **não pode ser movido**. Fica
+fora de troca de lineup (locked no banco sai dos candidatos; locked titular é
+fixado no slot), de trade (give e receive) e de add/drop de free agent. Não há
+cópia `.org` (só-projeção) das métricas — para comparar, rodar o pipeline com
+`use_realized = FALSE`.
 
 ---
 

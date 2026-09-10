@@ -165,11 +165,13 @@ optimize_lineup <- function(candidates, roster_slots) {
 # expected points is monotone.
 recommend_lineups <- function(current_players, espn_snap, draws_by_ffa,
                               run_id, season, week, tag,
-                              exclude_status = "OUT") {
+                              exclude_status = "OUT", locked_ffa = integer()) {
 
   if (!exists("evaluate_roster")) source("./R/decision/roster_evaluator.R")
 
   slots <- espn_snap$roster_slots
+  if (!"is_locked" %in% names(current_players)) current_players$is_locked <- FALSE
+  locked_of <- function(df) df$ffa_id[coalesce(df$is_locked, FALSE) | df$ffa_id %in% locked_ffa]
 
   mu  <- espn_snap$matchups |> distinct(home_team_id, away_team_id)
   opp <- bind_rows(
@@ -205,9 +207,14 @@ recommend_lineups <- function(current_players, espn_snap, draws_by_ffa,
       cand <- current_players |>
         filter(team_id == t, !is.na(ffa_id), !is.na(sim_mean), !is_ir)
     }
+    # a locked player whose game has begun cannot be moved: drop locked bench
+    # players from consideration, pin locked starters into the lineup.
+    tlocked <- locked_of(cand)
+    cand    <- cand |> filter(!(ffa_id %in% tlocked & !is_starter))
+    pin_t   <- intersect(tlocked, cand$ffa_id[cand$is_starter])
 
     cur_mm <- simulate_matchup(cur_ffa, opp_ffa, draws_by_ffa)
-    ev     <- evaluate_roster(cand, slots, draws_by_ffa, opp_ffa)
+    ev     <- evaluate_roster(cand, slots, draws_by_ffa, opp_ffa, pinned_ffa = pin_t)
     opt    <- ev$optimal_lineup[[1]]
 
     evals[[length(evals) + 1L]] <- tibble(
@@ -225,8 +232,9 @@ recommend_lineups <- function(current_players, espn_snap, draws_by_ffa,
       n_substitutions         = length(setdiff(cur_ffa, opt$ffa_id))
     )
 
-    outs <- setdiff(cur_ffa, opt$ffa_id)
-    ins  <- setdiff(opt$ffa_id, cur_ffa)
+    # locked players can't be swapped (pinning already prevents it; guard anyway)
+    outs <- setdiff(setdiff(cur_ffa, opt$ffa_id), tlocked)
+    ins  <- setdiff(setdiff(opt$ffa_id, cur_ffa), tlocked)
     if (length(outs) > 0L && length(outs) == length(ins)) {
       cp  <- current_players |> filter(team_id == t)
       nm  <- function(f) cp$player_name[match(f, cp$ffa_id)]

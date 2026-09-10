@@ -38,6 +38,7 @@ run_decision_pipeline <- function(season, week, tag,
                                   trades = TRUE, trade_team_id = NULL,  # NULL = all teams
                                   trade_max_give = 5L, trade_max_receive_per_pos = 5L,
                                   trade_top_n = 25L,
+                                  use_realized = TRUE,
                                   persist_draws = FALSE, persist = TRUE) {
 
   ffa_db        <- readRDS("./data/ffa_db.rds")
@@ -65,6 +66,40 @@ run_decision_pipeline <- function(season, week, tag,
   # ffa_id assumed unique across pos in the FFA snapshot (verified);
   # ponytail: revisit if this ever fires
   stopifnot(!anyDuplicated(sims$ffa_id))
+
+  # --- Phase 3b: realized-points folding --------------------------------
+  # Players whose NFL game has locked enter the Monte Carlo as a fixed value
+  # (their realized points), not a projection distribution. Also barred from
+  # lineup/FA/trade moves below (`locked_ffa`). No-op when nothing is locked.
+  bridged <- bridge_espn_to_ffa(espn_snap$rosters, analytical_db, ffa_db)
+  locked_ffa <- integer()
+  if (use_realized && nrow(espn_snap$realized) > 0L) {
+    id_map <- bind_rows(
+      bridged |> select(player_id, ffa_id),
+      bridge_espn_to_ffa(espn_snap$players, analytical_db, ffa_db) |>
+        select(player_id, ffa_id)
+    ) |>
+      filter(!is.na(ffa_id)) |>
+      distinct(player_id, .keep_all = TRUE)   # roster bridge (bound first) wins
+
+    locked <- espn_snap$realized |> filter(is_locked, !is.na(actual_points))
+    n_unmatched <- locked |> anti_join(id_map, by = "player_id") |> nrow()
+    if (n_unmatched > 0L) {
+      warning(glue::glue("{n_unmatched} locked player(s) with realized points ",
+                         "unmapped to ffa_id - kept as projections"), call. = FALSE)
+    }
+    realized_ffa <- locked |>
+      inner_join(id_map, by = "player_id") |>
+      distinct(ffa_id, .keep_all = TRUE) |>
+      select(ffa_id, actual_points)
+
+    if (nrow(realized_ffa) > 0L) {
+      sims <- apply_realized_points(sims, realized_ffa, n_sim)
+      locked_ffa <- realized_ffa$ffa_id
+      message(glue::glue("realized-points folding: {length(locked_ffa)} player(s) fixed"))
+    }
+  }
+
   draws_by_ffa <- set_names(sims$draws, as.character(sims$ffa_id))
 
   run_id    <- new_run_id(season, week, tag)
@@ -72,7 +107,8 @@ run_decision_pipeline <- function(season, week, tag,
 
   # --- Phase 4: current league state ------------------------------------
   current_players <- build_current_league_state(espn_snap, forecasts,
-                                                analytical_db, ffa_db)
+                                                analytical_db, ffa_db,
+                                                bridged = bridged)
   check_starters_have_forecast(current_players)
 
   # --- Phase 5: matchup simulation -------------------------------------
@@ -86,7 +122,7 @@ run_decision_pipeline <- function(season, week, tag,
   lineup_recs  <- NULL
   if (lineups) {
     le <- recommend_lineups(current_players, espn_snap, draws_by_ffa,
-                            run_id, season, week, tag)
+                            run_id, season, week, tag, locked_ffa = locked_ffa)
     lineup_evals <- le$evaluations
     lineup_recs  <- le$recommendations
   }
@@ -104,7 +140,8 @@ run_decision_pipeline <- function(season, week, tag,
       run_id, season, week, tag, team_id = fa_team_id,
       max_adds_per_pos = fa_max_adds_per_pos,
       max_drops        = fa_max_drops,
-      top_n            = fa_top_n
+      top_n            = fa_top_n,
+      locked_ffa       = locked_ffa
     )
   }
 
@@ -118,7 +155,8 @@ run_decision_pipeline <- function(season, week, tag,
       run_id, season, week, tag, team_id = trade_team_id,
       max_give            = trade_max_give,
       max_receive_per_pos = trade_max_receive_per_pos,
-      top_n               = trade_top_n
+      top_n               = trade_top_n,
+      locked_ffa          = locked_ffa
     )
   }
 

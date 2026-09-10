@@ -28,6 +28,13 @@ build_current_consensus <- function(ffa_snapshot) {
 
       .by = c(ffa_id, pos)
     ) |>
+    # A player can be scraped under two positions in the same snapshot (e.g. one
+    # source lists a FB as RB, another as TE). Downstream keys on ffa_id alone
+    # (player_simulation, draws_by_ffa), so collapse to the dominant position:
+    # most sources, then highest projection.
+    # ponytail: naive tie-break, revisit if a real dual-eligible player regresses
+    slice_max(order_by = tibble(n_sources, projection), n = 1, by = ffa_id,
+              with_ties = FALSE) |>
     mutate(
       source_range = if_else(n_sources >= 2, source_max - source_min, NA_real_),
       coverage_class = case_when(
@@ -46,9 +53,9 @@ build_current_consensus <- function(ffa_snapshot) {
 
 # One consensus row per player (spec 36). Stops on violation.
 check_one_consensus_per_player <- function(consensus) {
-  dups <- consensus |> count(ffa_id, pos) |> filter(n > 1)
+  dups <- consensus |> count(ffa_id) |> filter(n > 1)
   if (nrow(dups) > 0L) {
-    stop(glue::glue("consensus has {nrow(dups)} duplicated ffa_id/pos rows"),
+    stop(glue::glue("consensus has {nrow(dups)} duplicated ffa_id rows"),
          call. = FALSE)
   }
   invisible(TRUE)
