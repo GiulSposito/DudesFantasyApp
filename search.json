@@ -7,6 +7,62 @@
     "text": "Loading…"
   },
   {
+    "objectID": "lineup.html",
+    "href": "lineup.html",
+    "title": "Lineup Lab",
+    "section": "",
+    "text": "Loading…"
+  },
+  {
+    "objectID": "waivers.html",
+    "href": "waivers.html",
+    "title": "Waiver Wire Center",
+    "section": "",
+    "text": "Loading…"
+  },
+  {
+    "objectID": "matchup.html",
+    "href": "matchup.html",
+    "title": "Matchup Center",
+    "section": "",
+    "text": "Loading…"
+  },
+  {
+    "objectID": "trades.html",
+    "href": "trades.html",
+    "title": "Trade Center",
+    "section": "",
+    "text": "Loading…"
+  },
+  {
+    "objectID": "players.html",
+    "href": "players.html",
+    "title": "Player Explorer",
+    "section": "",
+    "text": "Loading…"
+  },
+  {
+    "objectID": "projections.html",
+    "href": "projections.html",
+    "title": "Projection Lab",
+    "section": "",
+    "text": "Loading…"
+  },
+  {
+    "objectID": "data-health.html",
+    "href": "data-health.html",
+    "title": "Data & Model Health",
+    "section": "",
+    "text": "Loading…"
+  },
+  {
+    "objectID": "index.html",
+    "href": "index.html",
+    "title": "Command Center",
+    "section": "",
+    "text": "Loading…"
+  },
+  {
     "objectID": "DEPLOY.html",
     "href": "DEPLOY.html",
     "title": "Deploying the cockpit",
@@ -56,58 +112,9 @@
     "text": "ESPN cookies (config/config.yml, R/api/example_espn_342842788.R) or any data/*.rds. The bundle build only ever reads them; validate_web_bundle() and tests/web/test_privacy_public.R guard the output."
   },
   {
-    "objectID": "index.html",
-    "href": "index.html",
-    "title": "Command Center",
-    "section": "",
-    "text": "Loading…"
-  },
-  {
-    "objectID": "data-health.html",
-    "href": "data-health.html",
-    "title": "Data & Model Health",
-    "section": "",
-    "text": "Loading…"
-  },
-  {
-    "objectID": "projections.html",
-    "href": "projections.html",
-    "title": "Projection Lab",
-    "section": "",
-    "text": "Loading…"
-  },
-  {
-    "objectID": "players.html",
-    "href": "players.html",
-    "title": "Player Explorer",
-    "section": "",
-    "text": "Loading…"
-  },
-  {
-    "objectID": "trades.html",
-    "href": "trades.html",
-    "title": "Trade Center",
-    "section": "",
-    "text": "Loading…"
-  },
-  {
-    "objectID": "matchup.html",
-    "href": "matchup.html",
-    "title": "Matchup Center",
-    "section": "",
-    "text": "Loading…"
-  },
-  {
-    "objectID": "waivers.html",
-    "href": "waivers.html",
-    "title": "Waiver Wire Center",
-    "section": "",
-    "text": "Loading…"
-  },
-  {
-    "objectID": "lineup.html",
-    "href": "lineup.html",
-    "title": "Lineup Lab",
+    "objectID": "scoreboard.html",
+    "href": "scoreboard.html",
+    "title": "Scoreboard",
     "section": "",
     "text": "Loading…"
   }
