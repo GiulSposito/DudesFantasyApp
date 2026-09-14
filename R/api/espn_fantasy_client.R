@@ -47,6 +47,13 @@
   paste(as.character(unlist(x, use.names = FALSE)), collapse = ",")
 }
 
+# Player headshots aren't in the API payload; ESPN's CDN serves them by
+# player_id at a fixed URL pattern. NA in, NA out (e.g. D/ST synthetic ids).
+.espn_headshot_url <- function(player_id) {
+  ifelse(is.na(player_id), NA_character_,
+         sprintf("https://a.espncdn.com/i/headshots/nfl/players/full/%d.png", player_id))
+}
+
 # Common ESPN football IDs.
 espn_lineup_slot_map <- function() {
   tibble::tribble(
@@ -348,6 +355,7 @@ espn_current_week <- function(client = espn_client()) {
       team_id = .espn_int(t$id),
       team_name = .espn_team_name(t),
       abbrev = .espn_chr(t$abbrev),
+      logo_url = .espn_chr(t$logo),
       owner_ids = if (length(owner_ids)) paste(owner_ids, collapse = ",") else NA_character_,
       owners = if (length(owner_names)) paste(owner_names, collapse = ", ") else NA_character_,
       division_id = .espn_int(t$divisionId),
@@ -404,6 +412,7 @@ espn_members <- function(client = espn_client()) {
         player_name = .espn_chr(p$fullName),
         first_name = .espn_chr(p$firstName),
         last_name = .espn_chr(p$lastName),
+        headshot_url = .espn_headshot_url(.espn_int(e$playerId %||% pool$id %||% p$id)),
         pro_team_id = .espn_int(p$proTeamId),
         default_position_id = .espn_int(p$defaultPositionId),
         lineup_slot_id = .espn_int(e$lineupSlotId),
@@ -602,6 +611,7 @@ espn_draft <- function(client = espn_client(), resolve_players = TRUE) {
       player_name = .espn_chr(p$fullName),
       first_name = .espn_chr(p$firstName),
       last_name = .espn_chr(p$lastName),
+      headshot_url = .espn_headshot_url(.espn_int(pool$id %||% p$id)),
       on_team_id = .espn_int(pool$onTeamId, 0L),
       pro_team_id = .espn_int(p$proTeamId),
       default_position_id = .espn_int(p$defaultPositionId),

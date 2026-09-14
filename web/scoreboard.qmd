@@ -1,0 +1,12 @@
+---
+title: "Scoreboard"
+---
+
+::: {#app}
+Loading…
+:::
+
+<script type="module">
+import { boot } from "./js/app.js";
+boot("scoreboard");
+</script>

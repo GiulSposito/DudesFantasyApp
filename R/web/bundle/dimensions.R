@@ -20,7 +20,7 @@ build_dim_teams <- function(src, run) {
     mutate(owner_id = .first_owner_id(owner_ids)) |>
     left_join(members, by = "owner_id") |>
     transmute(
-      season, team_id, team_name, abbrev, division_id,
+      season, team_id, team_name, abbrev, logo_url, division_id,
       owner_id, owner_name,
       is_my_team = team_id == src$my_team_id
     )

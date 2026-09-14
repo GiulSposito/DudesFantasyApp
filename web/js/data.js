@@ -73,8 +73,15 @@ export async function getRun() {
   return { ...m.current, privacy: m.privacy, generated_at: m.generated_at };
 }
 
+// One row per (season, week, tag) - the newest run when a re-run left more
+// than one snapshot for the same combination - newest first.
 export async function getRuns() {
-  return q("SELECT * FROM runs ORDER BY created_at DESC", "runs");
+  return q(
+    `SELECT * FROM runs
+     QUALIFY row_number() OVER (PARTITION BY season, week, tag ORDER BY created_at DESC) = 1
+     ORDER BY created_at DESC`,
+    "runs",
+  );
 }
 
 export async function getTeams() {

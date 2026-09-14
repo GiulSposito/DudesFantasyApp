@@ -145,10 +145,10 @@ Existe um modelo expandido alternativo de 8 tabelas em `R/api/nfl_league.R::nfl_
 |------------------|------------------|------------------|------------------|
 | `espn_league` | 1 | `league_id, season` | configurações da liga: tamanho, períodos de pontuação/matchup, config de draft, waiver/roster-lock |
 | `espn_members` | 14 | `member_id` | membros/donos: nome de exibição + real, flag de manager |
-| `espn_teams` | 14 | `season, team_id` | times: `team_name, abbrev, division_id, owner_ids, owners` |
+| `espn_teams` | 14 | `season, team_id` | times: `team_name, abbrev, logo_url, division_id, owner_ids, owners` |
 | `espn_roster_slots` | 25 | `season, lineup_slot_id` | definição de slots de lineup (id → label, `count`) |
 | `espn_scoring_rules` | 29 | `season, stat_id` | pontos por `stat_id` (+ `is_reverse_item`) |
-| `espn_players` | 1036 | `season, player_id` | master de jogador: união de todo `player_id` referenciado (pool/rosters/stats/draft); nome, time, posição |
+| `espn_players` | 1036 | `season, player_id` | master de jogador: união de todo `player_id` referenciado (pool/rosters/stats/draft); nome, time, posição, `headshot_url` (URL do CDN da ESPN derivada do `player_id`, não vem no payload) |
 | `espn_team_standings` | 14 | `season, week, tag, timestamp, team_id` | snapshot da classificação: ranks, W-L-T, points for/against, streak, acquisitions/drops/trades |
 | `espn_player_injury_status` | 1036 | `season, week, tag, timestamp, player_id` | `injury_status`, `injured`, `active` por jogador |
 | `espn_players_points` | 2617 | `season, week, tag, timestamp, player_id, stat_source_id, stat_split_type_id` | pontos por jogador por período --- **projetado (`stat_source_id==1`) e real (`==0`)**; `week` = período do registro, `stat_season` = temporada do registro; `lineup_locked` (bool, `NA` em snapshots antigos) = jogo do jogador já travou no scrape |

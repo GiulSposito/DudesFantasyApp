@@ -14,6 +14,7 @@ website:
     background: "#050921"
     left:
       - { text: "Command Center", href: index.qmd }
+      - { text: "Scoreboard",     href: scoreboard.qmd }
       - { text: "Matchup",        href: matchup.qmd }
       - { text: "Lineup",         href: lineup.qmd }
       - { text: "Waivers",        href: waivers.qmd }

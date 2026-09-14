@@ -12,15 +12,19 @@ if (!exists("optimize_lineup")) source("./R/decision/lineup_optimizer.R")
 
 build_rosters <- function(src, run) {
   cp <- src$decision_db$current_players |> filter(run_id == run$run_id)
+  if (!"is_locked" %in% names(cp)) cp$is_locked <- FALSE
   if (is.list(cp$eligible_slot_ids)) {
     cp <- cp |> mutate(eligible_slot_ids = map_chr(eligible_slot_ids,
                                                    ~ paste(.x, collapse = ",")))
   }
 
   fc <- src$decision_db$player_forecasts |>
-    filter(run_id == run$run_id) |>
+    filter(run_id == run$run_id)
+  if (!"is_realized" %in% names(fc)) fc$is_realized <- FALSE
+  fc <- fc |>
     select(ffa_id, pos, p25, p75,
-           prob_gt_10, prob_gt_15, prob_gt_20, prob_gt_25)
+           prob_gt_10, prob_gt_15, prob_gt_20, prob_gt_25,
+           is_realized)
 
   teams <- src$espn_db$espn_teams |>
     filter(season == run$season) |> select(team_id, team_name)
@@ -59,6 +63,6 @@ build_rosters <- function(src, run) {
       prob_gt_10, prob_gt_15, prob_gt_20, prob_gt_25,
       n_sources, coverage_class,
       is_optimal_starter, optimal_slot,
-      bridge_method
+      bridge_method, is_locked, is_realized
     )
 }

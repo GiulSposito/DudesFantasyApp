@@ -125,7 +125,7 @@ buildEspnDB <- function(snap, pool, .season, .week, .tag, .timestamp) {
   espn_teams <- snap$teams |>
     mutate(season = .season) |>
     distinct(season, team_id, .keep_all = TRUE) |>
-    select(season, team_id, team_name, abbrev, division_id, owner_ids, owners)
+    select(season, team_id, team_name, abbrev, logo_url, division_id, owner_ids, owners)
 
   espn_roster_slots <- snap$roster_slots |>
     mutate(season = .season) |>
@@ -143,10 +143,10 @@ buildEspnDB <- function(snap, pool, .season, .week, .tag, .timestamp) {
   # bind_rows order = richest source first; distinct() keeps that row.
   espn_players <- bind_rows(
       pool$players |>
-        select(player_id, player_name, first_name, last_name,
+        select(player_id, player_name, first_name, last_name, headshot_url,
                pro_team_id, pro_team, default_position_id, position),
       snap$rosters |>
-        select(any_of(c("player_id", "player_name", "first_name", "last_name",
+        select(any_of(c("player_id", "player_name", "first_name", "last_name", "headshot_url",
                         "pro_team_id", "pro_team", "default_position_id", "position"))),
       pool$stats |>
         select(any_of(c("player_id", "player_name", "position", "pro_team"))),
@@ -157,7 +157,7 @@ buildEspnDB <- function(snap, pool, .season, .week, .tag, .timestamp) {
     mutate(season = .season) |>
     arrange(player_id) |>
     distinct(season, player_id, .keep_all = TRUE) |>
-    select(season, player_id, player_name, first_name, last_name,
+    select(season, player_id, player_name, first_name, last_name, headshot_url,
            pro_team_id, pro_team, default_position_id, position)
 
   # -- facts (timestamped snapshots) -------------------------------------
