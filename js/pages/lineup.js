@@ -3,7 +3,7 @@ import * as data from "../data.js";
 import * as state from "../state.js";
 import * as fmt from "../format.js";
 import { el, banner, mount } from "../app.js";
-import { card, sectionLabel, deltaSpan, rankTable, playerRow, badge } from "../components.js";
+import { card, sectionLabel, deltaSpan, rankTable, playerRow, playerRowHeader, badge } from "../components.js";
 import { opportunityScatter } from "../charts.js";
 
 function comparison(ev) {
@@ -70,9 +70,11 @@ export async function render(root) {
     ]) : banner("empty", "No lineup substitutions recommended — the current lineup is already optimal."),
 
     sectionLabel(`Starters (${starters.length})`),
-    el("div", { class: "cockpit-card cockpit-card--tight" }, ...starters.map((p) => playerLine(p, recOf(p)))),
+    el("div", { class: "cockpit-card cockpit-card--tight" },
+      playerRowHeader(), ...starters.map((p) => playerLine(p, recOf(p)))),
     sectionLabel(`Bench (${bench.length})`),
-    el("div", { class: "cockpit-card cockpit-card--tight" }, ...bench.map((p) => playerLine(p, recOf(p)))),
+    el("div", { class: "cockpit-card cockpit-card--tight" },
+      playerRowHeader(), ...bench.map((p) => playerLine(p, recOf(p)))),
     ir.length ? sectionLabel(`IR (${ir.length})`) : null,
     ir.length ? el("div", { class: "cockpit-card cockpit-card--tight" }, ...ir.map((p) => playerLine(p, null))) : null,
 

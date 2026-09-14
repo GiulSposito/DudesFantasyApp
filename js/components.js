@@ -118,12 +118,27 @@ export function playerRow(p, { badge: rightBadge, optimal = false } = {}) {
     posBadge(p.position),
     el("div", { class: "player-row__name" }, p.player_name,
       statusBadge(p.injury_status) ? el("span", {}, " ", statusBadge(p.injury_status)) : null,
+      p.is_locked ? el("span", {}, " ", el("span",
+        { class: "badge-pill badge-pill--locked", title: "Game underway or finished" }, "🔒")) : null,
       rightBadge ? el("span", {}, " ", rightBadge) : null),
     el("div", { class: "player-row__meta hide-sm" }, p.nfl_team || ""),
     el("div", { class: "player-row__meta player-row__num hide-sm" },
       p.p10 != null ? `${fmt.points(p.p10)}–${fmt.points(p.p90)}` : ""),
     el("div", { class: "player-row__num player-row__num--strong" }, fmt.points(p.sim_mean)),
+    el("div", { class: "player-row__num hide-sm" }, p.is_realized ? fmt.points(p.sim_mean) : "–"),
     el("div", { class: "player-row__num" }, coverageDot(p.coverage_class)));
+}
+
+// column header for playerRow's grid - same tracks, labels only.
+export function playerRowHeader() {
+  return el("div", { class: "player-row player-row--head" },
+    el("div", {}, ""),
+    el("div", {}, "Player"),
+    el("div", { class: "hide-sm" }, "Team"),
+    el("div", { class: "player-row__num hide-sm", title: "Simulated floor–ceiling (p10–p90)" }, "Range"),
+    el("div", { class: "player-row__num", title: "Simulated mean projection" }, "Proj"),
+    el("div", { class: "player-row__num hide-sm", title: "Points actually scored, once the player's game locks" }, "Actual"),
+    el("div", { class: "player-row__num", title: "Confidence from source coverage" }, "Cov"));
 }
 
 export function fairnessMeter(value, { min = -10, max = 10 } = {}) {
