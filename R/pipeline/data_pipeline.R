@@ -21,7 +21,7 @@ source("./R/web/build_web_bundle.R")          # defines build_web_bundle()
 config      <- yaml::read_yaml("./config/config.yml")
 .season     <- 2026L
 .week       <- 1L            # current week - snapshot pulled from each source
-.tag        <- "preTNF"      # ver docs/PIPELINE_RUNBOOK.md "Vocabulário de tag"
+.tag        <- "posTNF"      # ver docs/PIPELINE_RUNBOOK.md "Vocabulário de tag"
 .timestamp  <- lubridate::now()
 .scoreRules <- yaml::read_yaml("./config/score_settings.yml")
 .publish    <- TRUE          # FALSE = build the web bundle but skip the gh-pages push

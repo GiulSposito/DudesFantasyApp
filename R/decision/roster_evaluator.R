@@ -18,23 +18,44 @@ if (!exists("optimize_lineup"))  source("./R/decision/lineup_optimizer.R")
 if (!exists("simulate_matchup")) source("./R/decision/matchup_simulation.R")
 
 # Consume one starting-slot instance per pinned (locked) player, matched to a
-# slot the player is eligible for, most-constrained player first. Returns a
-# roster_slots-shaped frame (lineup_slot_id, lineup_slot, count) with the
-# remaining open slots, for optimize_lineup() to fill around the pins.
+# slot the player is eligible for. Returns a roster_slots-shaped frame
+# (lineup_slot_id, lineup_slot, count) with the remaining open slots, for
+# optimize_lineup() to fill around the pins.
+#
+# Bipartite max matching (Kuhn's augmenting-path algorithm), not a one-pass
+# greedy: a player with a "rarer" slot type available is not necessarily the
+# only one who needs it (e.g. RB is the only one eligible for the plain RB
+# slot but also competes for RB/WR with 3 WRs) - a pick that looks locally
+# safest can starve a later player even though a full assignment exists.
+# Small scale (<= roster size candidates x starting slots), so this is cheap.
 .drop_pinned_slots <- function(roster_slots, pinned) {
   ss   <- .starting_slots(roster_slots)          # one row per open slot instance
   elig <- lapply(pinned$eligible_slot_ids, .parse_slot_ids)
-  take <- logical(nrow(ss))
-  for (i in order(lengths(elig))) {
-    j <- which(!take & ss$lineup_slot_id %in% elig[[i]])
-    if (length(j) == 0L) {
+  adj  <- lapply(elig, function(e) which(ss$lineup_slot_id %in% e))
+
+  match_slot <- rep(NA_integer_, nrow(ss))   # slot index -> matched player index
+  visited    <- logical(nrow(ss))
+
+  augment <- function(i) {
+    for (j in adj[[i]]) {
+      if (visited[j]) next
+      visited[j] <<- TRUE
+      if (is.na(match_slot[j]) || augment(match_slot[j])) {
+        match_slot[j] <<- i
+        return(TRUE)
+      }
+    }
+    FALSE
+  }
+
+  for (i in order(lengths(adj))) {   # most-constrained first: fewer augmenting paths
+    visited <- logical(nrow(ss))
+    if (!augment(i)) {
       stop("evaluate_roster: pinned (locked) player cannot fill any open starting slot",
            call. = FALSE)
     }
-    tab <- table(ss$lineup_slot_id[j])
-    pick_type <- as.integer(names(tab)[which.min(tab)])   # rarest slot type first
-    take[j[ss$lineup_slot_id[j] == pick_type][1]] <- TRUE
   }
+  take <- !is.na(match_slot)
   ss[!take, , drop = FALSE] |> count(lineup_slot_id, lineup_slot, name = "count")
 }
 
@@ -56,11 +77,22 @@ evaluate_roster <- function(candidates, roster_slots, draws_by_ffa,
   } else {
     pinned <- candidates |> filter(ffa_id %in% pinned_ffa)
     free   <- candidates |> filter(!ffa_id %in% pinned_ffa)
+    remaining_slots <- .drop_pinned_slots(roster_slots, pinned)
+    # pins alone can fill every starting slot (e.g. late in the week, most
+    # games locked) - nothing left for optimize_lineup() to do, and it errors
+    # on zero slots rather than treating that as "no-op".
+    filled <- if (nrow(remaining_slots) == 0L) {
+      tibble(lineup_slot_id = integer(), lineup_slot = character(),
+             ffa_id = integer(), pos = character(), sim_mean = double(),
+             player_name = character(), espn_id = integer())
+    } else {
+      optimize_lineup(free, remaining_slots)
+    }
     opt <- bind_rows(
       pinned |> transmute(lineup_slot_id = NA_integer_, lineup_slot = NA_character_,
                           ffa_id, pos, sim_mean, player_name,
                           espn_id = as.integer(espn_id)),
-      optimize_lineup(free, .drop_pinned_slots(roster_slots, pinned))
+      filled
     ) |>
       arrange(lineup_slot_id, desc(sim_mean))
   }

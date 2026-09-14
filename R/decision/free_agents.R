@@ -176,11 +176,17 @@ recommend_free_agents <- function(current_players, free_agents, espn_snap,
     base <- my |> filter(!is.na(ffa_id), !is.na(sim_mean), !is_ir)
   }
   base <- base |>
-    mutate(is_locked = if ("is_locked" %in% names(base)) coalesce(is_locked, FALSE) else FALSE) |>
-    select(ffa_id, pos, position, sim_mean, eligible_slot_ids, player_name, espn_id, is_locked)
+    mutate(is_locked = if ("is_locked" %in% names(base)) coalesce(is_locked, FALSE) else FALSE)
 
-  # locked players cannot be dropped or benched - pin them into every lineup
-  pinned_team <- base$ffa_id[base$is_locked | base$ffa_id %in% locked_ffa]
+  # a locked player whose game has begun cannot be moved: drop locked bench
+  # players from consideration, pin only locked starters (same as
+  # recommend_lineups() / trades.R).
+  tlocked <- base$ffa_id[base$is_locked | base$ffa_id %in% locked_ffa]
+  base <- base |>
+    filter(!(ffa_id %in% tlocked & !is_starter)) |>
+    select(ffa_id, pos, position, sim_mean, eligible_slot_ids, player_name, espn_id,
+           is_locked, is_starter)
+  pinned_team <- intersect(tlocked, base$ffa_id[base$is_starter])
 
   before  <- evaluate_roster(base, slots, draws_by_ffa, opp_ffa, pinned_ffa = pinned_team)
   n_before <- nrow(before$optimal_lineup[[1]])

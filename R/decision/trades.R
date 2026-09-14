@@ -76,7 +76,10 @@ recommend_trades <- function(current_players, espn_snap, draws_by_ffa,
   # players whose game has begun: cannot be given or received, must stay started
   locked_all <- union(as.integer(locked_ffa),
                       current_players$ffa_id[coalesce(current_players$is_locked, FALSE)])
-  pin_of <- function(base) intersect(locked_all, base$ffa_id)
+  # pin only locked STARTERS (must stay in their slot); a locked BENCH player
+  # can't be moved either but was never in the lineup, so it isn't pinned - it's
+  # just excluded from the candidate pool below, same as recommend_lineups().
+  pin_of <- function(base) intersect(locked_all, base$ffa_id[base$is_starter])
 
   # bidirectional team -> opponent map (spec 41) - same as recommend_lineups()
   mu  <- espn_snap$matchups |> distinct(home_team_id, away_team_id)
@@ -99,8 +102,12 @@ recommend_trades <- function(current_players, espn_snap, draws_by_ffa,
     if (nrow(b) < sum(my$is_starter, na.rm = TRUE)) {
       b <- my |> filter(!is.na(ffa_id), !is.na(sim_mean), !is_ir)
     }
+    # locked bench players can't be inserted into the lineup this week either -
+    # drop them from consideration, same as recommend_lineups().
+    tlocked <- intersect(locked_all, b$ffa_id)
+    b <- b |> filter(!(ffa_id %in% tlocked & !is_starter))
     b |> select(ffa_id, pos, position, sim_mean, eligible_slot_ids,
-                player_name, espn_id)
+                player_name, espn_id, is_starter)
   }
 
   has_draws <- function(x) as.character(x) %in% names(draws_by_ffa)
