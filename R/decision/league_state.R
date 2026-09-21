@@ -30,7 +30,12 @@ load_espn_ffa_overrides <- function(file = .OVERRIDES_FILE) {
     distinct()
 }
 
-.norm_name <- function(x) str_replace_all(str_squish(str_to_lower(x)), "[^a-z ]", "")
+.norm_name <- function(x) {
+  str_squish(str_to_lower(x)) |>
+    str_replace_all("[^a-z ]", "") |>
+    str_squish() |>
+    str_remove(" (jr|sr|ii|iii|iv)$")
+}
 .norm_pos  <- function(x) if_else(x %in% c("DEF", "D/ST"), "DST", x)
 
 # rosters: espn_snap$rosters. Returns rosters + ffa_id + bridge_method.

@@ -5,7 +5,8 @@ library(tidyverse)
 
 # load
 ffa_db <- readRDS("./data/ffa_db.rds")
-ffa_hist <- readRDS("./historic/ffa_db.rds")
+ffa_hist <- readRDS("./historic/2020-2025/ffa_db.rds")
+ffa_hist_2021 <- readRDS("./historic/2021/ffa_db.rds") # 2020-2025 slice for 2021 is broken (week 1 only)
 
 # season/weeks
 ffa_hist$ffa_proj_source_points |>
@@ -21,15 +22,47 @@ ffa_db$ffa_proj_source_points |>
 
 # union
 ffa_projection_source <- bind_rows(
-    mutate(ffa_hist$ffa_proj_source_points,week=as.integer(week)),
+    mutate(ffa_hist$ffa_proj_source_points,week=as.integer(week)) |> filter(season != 2021),
+    mutate(ffa_hist_2021$ffa_proj_source_points, id=as.character(id)),
     ffa_db$ffa_proj_source_points
-  ) |> 
+  ) |>
   select(season, week, tag, timestamp, data_src, ffa_id=id, pos, proj_points=points) |> 
-  mutate(ffa_id = as.integer(ffa_id)) |> 
-  filter(!is.na(proj_points)) |> 
-  distinct() |> 
+  mutate(ffa_id = as.integer(ffa_id)) |>
+  filter(!is.na(proj_points)) |>
+  filter(!is.na(ffa_id)) |> # unresolved id, never joins to player_ids anyway; historic/2021 has ~1800 of these
+  distinct() |>
   filter(season!=2026, week!=0) |> 
   filter(!(pos %in% c("FB", "Kenneth Walker III"))) # polution coming from somewhere
+
+# TAXONOMIA CANONICA DE TAG #####
+# tag é string livre e diverge entre eras (histórico usa tags de evento tipo
+# preSNF/preLondonGame; pipeline atual usa preview/preKickoff/season) — mapeia pra
+# um marco semanal canônico ordenado, pra tornar a cobertura cross-era explícita.
+tag_taxonomy <- tribble(
+  ~tag,             ~canonical_tag,     ~tag_rank,
+  "preview",        "pre_waivers",       1L,
+  "preWaivers",     "pre_waivers",       1L,
+  "posWaivers",     "pos_waivers",       2L,
+  "preLondonGame",  "pre_tnf",           3L,  # jogo internacional = 1º evento que trava jogadores na semana
+  "preGermanGame",  "pre_tnf",           3L,
+  "preKickoff",     "pre_tnf",           3L,  # snapshot ad hoc pré-1º-jogo; sem granularidade melhor, cai no mesmo rank
+  "preTNF",         "pre_tnf",           3L,
+  "posTNF",         "pos_tnf",           4L,
+  "preSunday",      "pre_sunday_games",  5L,
+  "preSundayGames", "pre_sunday_games",  5L,
+  "preSNF",         "pre_snf",           6L,
+  "posSNF",         "pos_snf",           7L,  # nunca observada nos dados, mantida por completude do vocabulário pedido
+  "preMNF",         "pre_mnf",           8L,
+  "final",          "final",             9L,
+  "season",         "season",            NA_integer_,  # snapshot de temporada (week=0), fora da sequência semanal
+)
+
+ffa_projection_source <- ffa_projection_source |>
+  left_join(tag_taxonomy, by = "tag")
+
+# falha alto e claro em vez de virar partição órfã silenciosa (risco já documentado em CLAUDE.md)
+unmapped <- ffa_projection_source |> filter(is.na(canonical_tag)) |> distinct(tag)
+if (nrow(unmapped) > 0) stop("Tag(s) sem mapeamento na taxonomia: ", paste(unmapped$tag, collapse = ", "))
 
 # quantas fontes distintas por semana?
 ffa_projection_source |> 
@@ -39,26 +72,23 @@ ffa_projection_source |>
 
 # ACTUAL PONTS #####
 
-nfl_stats <- readRDS("./data/nfl_stats_db.rds")
-nfl_hist <- readRDS("./historic/nfl_stats_db.rds")
+nfl_hist <- readRDS("./historic/2020-2025/nfl_stats_db.rds")
+nfl_hist_2021 <- readRDS("./historic/2021/nfl_stats_db.rds") # 2020-2025 slice for 2021 is broken (week 1 only)
 
-nfl_stats$nfl_players_points |> 
-  filter(!is.na(pts)) |> 
-  distinct(season,week) |> 
+nfl_hist$nfl_players_points |>
+  filter(!is.na(pts)) |>
+  distinct(season,week) |>
   count(season)
 
-nfl_hist$nfl_players_points |> 
-  filter(!is.na(pts)) |> 
-  distinct(season,week) |> 
-  count(season)
-
-# actual points 
+# actual points (só histórico: analytical_db calibra contra temporadas encerradas;
+# pontos da temporada corrente são resolvidos ao vivo via lineup_locked da ESPN,
+# não por aqui — data/nfl_stats_db.rds da pipeline NFL legada não existe mais)
 nfl_player_points <- bind_rows(
-  nfl_stats$nfl_players_points,
-  nfl_hist$nfl_players_points
-) |> 
-  filter(!is.na(pts)) |> 
-  rename(nfl_id=playerId, points=pts) |> 
+    nfl_hist$nfl_players_points |> filter(season != 2021),
+    nfl_hist_2021$nfl_players_points
+  ) |>
+  filter(!is.na(pts)) |>
+  rename(nfl_id=playerId, points=pts) |>
   distinct()
 
 
@@ -80,7 +110,7 @@ player_ids |> nrow()
 # COMPLETUDE DE CHAVES ######
 
 # missing players in FFA (tem estatística na NFL mas não tem ID no FFA)
-nfl_players <- readRDS("./data/nfl_players_db.rds")
+nfl_players <- readRDS("./historic/2020-2025/nfl_players_db.rds")
 nfl_player <- nfl_players$nfl_players |> select(nfl_id=playerId, firstName, lastName, position)
 nfl_player_points |> 
   anti_join(player_ids, by = join_by(nfl_id)) |> 
