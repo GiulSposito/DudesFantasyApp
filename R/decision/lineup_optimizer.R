@@ -198,20 +198,18 @@ recommend_lineups <- function(current_players, espn_snap, draws_by_ffa,
     opp_ffa <- starters_ffa(ot)
     cur_ffa <- starters_ffa(t)
 
-    cand <- current_players |>
-      filter(team_id == t, !is.na(ffa_id), !is.na(sim_mean),
-             !is_ir, !injury_status %in% exclude_status)
-    # relax injury exclusion once if it leaves the roster short (spec: never fail
-    # a run over injuries)
-    if (nrow(cand) < length(cur_ffa)) {
-      cand <- current_players |>
-        filter(team_id == t, !is.na(ffa_id), !is.na(sim_mean), !is_ir)
-    }
+    base <- current_players |>
+      filter(team_id == t, !is.na(ffa_id), !is.na(sim_mean), !is_ir)
+    # a locked player cannot be moved regardless of injury status (it already
+    # played), so exclude_status only screens candidates that could still be
+    # swapped - applying it to a locked starter would drop its slot with
+    # nothing left to pin into it (spec: never fail a run over injuries).
+    tlocked <- locked_of(base)
+    cand    <- base |> filter(ffa_id %in% tlocked | !injury_status %in% exclude_status)
     # a locked player whose game has begun cannot be moved: drop locked bench
     # players from consideration, pin locked starters into the lineup.
-    tlocked <- locked_of(cand)
-    cand    <- cand |> filter(!(ffa_id %in% tlocked & !is_starter))
-    pin_t   <- intersect(tlocked, cand$ffa_id[cand$is_starter])
+    cand  <- cand |> filter(!(ffa_id %in% tlocked & !is_starter))
+    pin_t <- intersect(tlocked, cand$ffa_id[cand$is_starter])
 
     cur_mm <- simulate_matchup(cur_ffa, opp_ffa, draws_by_ffa)
     ev     <- evaluate_roster(cand, slots, draws_by_ffa, opp_ffa, pinned_ffa = pin_t)

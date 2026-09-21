@@ -96,12 +96,12 @@ recommend_trades <- function(current_players, espn_snap, draws_by_ffa,
 
   # roster's startable players - same filter + one-time relax as recommend_lineups()
   base_roster <- function(t) {
-    my <- current_players |> filter(team_id == t)
-    b  <- my |> filter(!is.na(ffa_id), !is.na(sim_mean), !is_ir,
-                       !injury_status %in% exclude_status)
-    if (nrow(b) < sum(my$is_starter, na.rm = TRUE)) {
-      b <- my |> filter(!is.na(ffa_id), !is.na(sim_mean), !is_ir)
-    }
+    my    <- current_players |> filter(team_id == t)
+    valid <- my |> filter(!is.na(ffa_id), !is.na(sim_mean), !is_ir)
+    # a locked player can't be moved regardless of injury status, so
+    # exclude_status only screens candidates that could still be swapped
+    # (same fix as recommend_lineups()).
+    b <- valid |> filter(ffa_id %in% locked_all | !injury_status %in% exclude_status)
     # locked bench players can't be inserted into the lineup this week either -
     # drop them from consideration, same as recommend_lineups().
     tlocked <- intersect(locked_all, b$ffa_id)

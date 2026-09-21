@@ -168,15 +168,14 @@ recommend_free_agents <- function(current_players, free_agents, espn_snap,
                                       current_players$is_starter &
                                       !is.na(current_players$ffa_id)]
 
-  # base roster candidates - same filter + one-time relax as recommend_lineups()
-  my   <- current_players |> filter(team_id == tid)
-  base <- my |> filter(!is.na(ffa_id), !is.na(sim_mean), !is_ir,
-                       !injury_status %in% exclude_status)
-  if (nrow(base) < sum(my$is_starter, na.rm = TRUE)) {
-    base <- my |> filter(!is.na(ffa_id), !is.na(sim_mean), !is_ir)
-  }
-  base <- base |>
-    mutate(is_locked = if ("is_locked" %in% names(base)) coalesce(is_locked, FALSE) else FALSE)
+  # base roster candidates - a locked player can't be moved regardless of
+  # injury status, so exclude_status only screens candidates that could still
+  # be swapped (same fix as recommend_lineups()).
+  my    <- current_players |> filter(team_id == tid) |>
+    mutate(is_locked = if ("is_locked" %in% names(current_players)) coalesce(is_locked, FALSE) else FALSE)
+  valid <- my |> filter(!is.na(ffa_id), !is.na(sim_mean), !is_ir)
+  locked_here <- valid$ffa_id[valid$is_locked | valid$ffa_id %in% locked_ffa]
+  base  <- valid |> filter(ffa_id %in% locked_here | !injury_status %in% exclude_status)
 
   # a locked player whose game has begun cannot be moved: drop locked bench
   # players from consideration, pin only locked starters (same as
