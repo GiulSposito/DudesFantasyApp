@@ -17,14 +17,19 @@ library(dm)
 
 # --- FFA -------------------------------------------------------------------------
 
-# Select the current FFA source-projection snapshot.
+# Select the current FFA source-projection snapshot: the freshest scrape of the
+# week, regardless of tag (spec: consumers always take max(timestamp) - a stale
+# .tag master parameter must never mask a newer scrape taken under a different
+# tag, e.g. a posTNF run that reused the preTNF tag by mistake). `tag` is not
+# used to select rows here - it is only echoed back as the run label stamped
+# onto downstream tables (current_players$tag, free_agents_tbl$tag, ...).
 # Returns a list: proj_source (tibble), timestamp, season, week, tag.
 select_ffa_snapshot <- function(ffa_db, season, week, tag) {
   rows <- ffa_db$ffa_proj_source_points |>
-    filter(season == !!season, week == !!week, tag == !!tag)
+    filter(season == !!season, week == !!week)
 
   if (nrow(rows) == 0L) {
-    stop(glue::glue("season/week/tag not found in ffa_db: {season}/{week}/{tag}"),
+    stop(glue::glue("season/week not found in ffa_db: {season}/{week}"),
          call. = FALSE)
   }
 
@@ -43,13 +48,16 @@ select_ffa_snapshot <- function(ffa_db, season, week, tag) {
 
 # Select the current ESPN league snapshot: rosters (starter/bench/ir), the week's
 # head-to-head matchups, injury status, plus the roster-slot definition and team
-# list. Same snapshot rule as FFA: season + week + tag + max(timestamp).
+# list. Same snapshot rule as FFA: season + week + max(timestamp), regardless of
+# tag - see select_ffa_snapshot()'s comment. Each table's own max(timestamp) is
+# taken independently, which lines up across tables because one pipeline run
+# stamps every espn_* table with the same shared .timestamp.
 select_espn_snapshot <- function(espn_db, season, week, tag) {
   rosters <- espn_db$espn_rosters |>
-    filter(season == !!season, week == !!week, tag == !!tag)
+    filter(season == !!season, week == !!week)
 
   if (nrow(rosters) == 0L) {
-    stop(glue::glue("season/week/tag not found in espn_db: {season}/{week}/{tag}"),
+    stop(glue::glue("season/week not found in espn_db: {season}/{week}"),
          call. = FALSE)
   }
 
@@ -64,7 +72,7 @@ select_espn_snapshot <- function(espn_db, season, week, tag) {
   # actual for the week, plus whether their game has locked (spec: realized-points
   # folding). Empty tibble if the points table has no matching rows.
   realized <- espn_db$espn_players_points |>
-    filter(season == !!season, week == !!week, tag == !!tag, stat_source_id == 0L)
+    filter(season == !!season, week == !!week, stat_source_id == 0L)
   if (!"lineup_locked" %in% colnames(realized)) realized$lineup_locked <- NA
   realized <- if (nrow(realized) == 0L) {
     tibble(player_id = integer(), actual_points = double(), is_locked = logical())
@@ -80,11 +88,11 @@ select_espn_snapshot <- function(espn_db, season, week, tag) {
 
   # the snapshot carries the whole-season schedule; keep only this week's games
   matchups <- espn_db$espn_matchups |>
-    filter(season == !!season, week == !!week, tag == !!tag) |>
+    filter(season == !!season, week == !!week) |>
     filter(timestamp == max(timestamp), matchup_period_id == !!week)
 
   injury <- espn_db$espn_player_injury_status |>
-    filter(season == !!season, week == !!week, tag == !!tag)
+    filter(season == !!season, week == !!week)
   if (nrow(injury) > 0L) {
     injury <- injury |>
       filter(timestamp == max(timestamp)) |>
