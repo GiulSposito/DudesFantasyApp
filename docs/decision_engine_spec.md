@@ -622,7 +622,7 @@ is_realized
 ## 11.3 Realized-points folding
 
 Retoma um comportamento do simulador legado
-(`R_old/simulation/points_simulation_v6.R`): no meio da semana, jogadores cujo
+(`archive/R_old/simulation/points_simulation_v6.R`): no meio da semana, jogadores cujo
 jogo da NFL **já começou** entram no Monte Carlo como um **valor fixo** — os
 pontos de fantasy que realmente fizeram — e não como distribuição de projeção.
 Os demais jogadores mantêm o range de seeds normal. Assim a pontuação projetada

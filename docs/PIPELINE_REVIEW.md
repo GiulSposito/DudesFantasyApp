@@ -78,9 +78,11 @@ Superado por `R/decision/player_simulation.R` (a "V2" da spec). Hoje não roda:
   usa `pull_workflow_fit()` (deprecado) no lugar de `extract_fit_parsnip()`.
 - `data/dudes_simulation_db.rds` está preso em 2024 w2-4.
 
-Recomendação: mover `simulation_machine.R`, `team_optimizer.R`, `projection_ml.R`,
-`team_sim.R`, `player_simulation_analysis.R` para `R_old/` ou um `R/_legacy/`, e
-apontar `README.md` para a decision engine.
+**Feito:** `simulation_machine.R`, `team_optimizer.R`, `projection_ml.R`,
+`team_sim.R`, `player_simulation_analysis.R` (e mais 6 outros arquivos de
+`R/snippets/`/`R/transformation/`/`R/api/`/`R/pipeline/` confirmados mortos por
+`source()`) foram movidos para `archive/R/...`, junto com `R_old/` inteiro para
+`archive/R_old/`. `README.md` ainda não aponta para a decision engine — pendente.
 
 ---
 
