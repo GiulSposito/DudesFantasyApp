@@ -1,16 +1,16 @@
 {
   "schema_version": "1.0.0",
-  "generated_at": "2026-09-22T11:23:37Z",
+  "generated_at": "2026-09-22T12:41:05Z",
   "current": {
-    "run_id": "2026-W02-final-20260922T082324",
+    "run_id": "2026-W03-preWaivers-20260922T093739",
     "season": 2026,
-    "week": 2,
-    "tag": "final",
+    "week": 3,
+    "tag": "preWaivers",
     "model_version": "player-mc-v2",
     "n_sim": 10000,
-    "created_at": "2026-09-22T11:23:31Z",
-    "ffa_timestamp": "2026-09-21T12:55:25Z",
-    "espn_timestamp": "2026-09-22T11:22:27Z"
+    "created_at": "2026-09-22T12:41:01Z",
+    "ffa_timestamp": "2026-09-22T12:36:56Z",
+    "espn_timestamp": "2026-09-22T12:34:51Z"
   },
   "datasets": {
     "runs": "runs.parquet",
