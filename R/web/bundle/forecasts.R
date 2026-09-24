@@ -18,6 +18,9 @@ build_forecasts <- function(src, run) {
   if (!"is_realized" %in% names(fc)) fc$is_realized <- FALSE
 
   fc |>
+    # the engine's espn_id is the stale historical xref; prefer this run's bridge
+    left_join(run_espn_bridge(src, run), by = "ffa_id") |>
+    mutate(espn_id = coalesce(run_espn_id, as.integer(espn_id))) |>
     left_join(espn_nm, by = "espn_id") |>
     left_join(ffa_nm, by = "ffa_id") |>
     mutate(

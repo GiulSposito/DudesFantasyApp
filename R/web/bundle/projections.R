@@ -22,6 +22,8 @@ build_source_projections <- function(src, run) {
     mutate(ffa_id = suppressWarnings(as.integer(id))) |>
     filter(!is.na(ffa_id)) |>
     left_join(xref, by = "ffa_id") |>
+    left_join(run_espn_bridge(src, run), by = "ffa_id") |>
+    mutate(espn_id = coalesce(run_espn_id, as.integer(espn_id))) |>
     left_join(espn_nm, by = "espn_id") |>
     left_join(ffa_nm, by = "ffa_id") |>
     transmute(

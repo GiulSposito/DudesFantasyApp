@@ -1615,8 +1615,9 @@ Tudo derivado de ids que os marts já trazem; nada novo no bundle.
   `teamBadge()`).
 * **Fallback**: se a imagem não carregar, o avatar mostra as iniciais e o logo
   mostra um monograma com o `abbrev`. Nunca fica imagem quebrada na tela.
-* `forecasts.espn_id` vem do xref histórico e está errado para alguns jogadores; a
-  página Jogadores usa `data.getEspnIdByFfa()` (rosters + free agents da execução).
+* O `espn_id` dos marts vem da ponte ESPN ↔ FFA da própria execução
+  (`run_espn_bridge()` em `R/web/utils/bridge.R`), não do xref histórico, que tem
+  ids antigos para parte dos veteranos.
 
 ## Componentes adicionados
 

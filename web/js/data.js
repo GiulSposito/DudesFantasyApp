@@ -193,16 +193,6 @@ export async function getAllRosters() {
   return q("SELECT team_id, team_name, player_id, ffa_id FROM rosters", "rosters");
 }
 
-// ffa_id -> ESPN player_id as the decision engine bridged it this run (rosters +
-// free agents). forecasts.espn_id comes from the historical xref and is stale for
-// some players, so pictures and owners key on this map first.
-export async function getEspnIdByFfa() {
-  const [r, f] = await Promise.all([
-    q("SELECT ffa_id, player_id FROM rosters WHERE ffa_id IS NOT NULL", "rosters"),
-    q("SELECT ffa_id, player_id FROM free_agents WHERE ffa_id IS NOT NULL", "free_agents"),
-  ]);
-  return new Map([...f, ...r].map((x) => [String(x.ffa_id), x.player_id]));
-}
 
 // Win-probability path of one matchup across the week's snapshots.
 export async function getMatchupHistory(week, matchupId) {

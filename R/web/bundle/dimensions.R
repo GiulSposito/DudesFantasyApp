@@ -32,12 +32,18 @@ build_dim_players <- function(src, run) {
     distinct(espn_id, .keep_all = TRUE) |>
     select(espn_id, ffa_id, nfl_id)
 
+  # this run's bridge wins over the historical xref (stale ESPN ids)
+  run_ffa <- run_espn_bridge(src, run) |>
+    distinct(run_espn_id, .keep_all = TRUE) |>
+    rename(run_ffa_id = ffa_id)
+
   src$espn_db$espn_players |>
     filter(season == run$season) |>
     left_join(xref, by = c("player_id" = "espn_id")) |>
+    left_join(run_ffa, by = c("player_id" = "run_espn_id")) |>
     transmute(
       season, player_id,
-      ffa_id, nfl_id,
+      ffa_id = coalesce(as.integer(run_ffa_id), as.integer(ffa_id)), nfl_id,
       player_name,
       position,
       nfl_team = pro_team,

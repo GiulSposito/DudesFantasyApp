@@ -57,8 +57,27 @@ run_decision_pipeline <- function(season, week, tag,
 
   xref <- build_current_player_xref(analytical_db)
   report_id_mapping(consensus, xref)
+
+  # ESPN player_id <-> ffa_id as bridged for this snapshot (rosters first, then
+  # the whole ESPN pool). Used for espn_id on forecasts and for realized points.
+  bridged <- bridge_espn_to_ffa(espn_snap$rosters, analytical_db, ffa_db)
+  id_map <- bind_rows(
+    bridged |> select(player_id, ffa_id),
+    bridge_espn_to_ffa(espn_snap$players, analytical_db, ffa_db) |>
+      select(player_id, ffa_id)
+  ) |>
+    filter(!is.na(ffa_id)) |>
+    distinct(player_id, .keep_all = TRUE)   # roster bridge (bound first) wins
+
+  # the historical xref's espn_id is stale for a slice of veterans (e.g.
+  # McCaffrey 18279 vs ESPN 3117251): prefer the snapshot bridge, fall back
+  # to the xref only for players the bridge did not reach.
   consensus <- consensus |>
-    left_join(distinct(xref, ffa_id, espn_id), by = "ffa_id")
+    left_join(distinct(xref, ffa_id, espn_id), by = "ffa_id") |>
+    left_join(id_map |> distinct(ffa_id, .keep_all = TRUE) |>
+                transmute(ffa_id, bridge_espn_id = as.integer(player_id)), by = "ffa_id") |>
+    mutate(espn_id = coalesce(bridge_espn_id, as.integer(espn_id))) |>
+    select(-bridge_espn_id)
 
   # --- Phase 3: player Monte Carlo ---------------------------------------
   set.seed(seed)                     # the one and only seed call (spec 10)
@@ -71,17 +90,8 @@ run_decision_pipeline <- function(season, week, tag,
   # Players whose NFL game has locked enter the Monte Carlo as a fixed value
   # (their realized points), not a projection distribution. Also barred from
   # lineup/FA/trade moves below (`locked_ffa`). No-op when nothing is locked.
-  bridged <- bridge_espn_to_ffa(espn_snap$rosters, analytical_db, ffa_db)
   locked_ffa <- integer()
   if (use_realized && nrow(espn_snap$realized) > 0L) {
-    id_map <- bind_rows(
-      bridged |> select(player_id, ffa_id),
-      bridge_espn_to_ffa(espn_snap$players, analytical_db, ffa_db) |>
-        select(player_id, ffa_id)
-    ) |>
-      filter(!is.na(ffa_id)) |>
-      distinct(player_id, .keep_all = TRUE)   # roster bridge (bound first) wins
-
     locked <- espn_snap$realized |> filter(is_locked, !is.na(actual_points))
     n_unmatched <- locked |> anti_join(id_map, by = "player_id") |> nrow()
     if (n_unmatched > 0L) {
