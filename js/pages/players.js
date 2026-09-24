@@ -58,12 +58,10 @@ function chips(values, current, onPick, labels = {}) {
 
 export async function render(root) {
   const { position, teamId } = state.get();
-  const [all, rosters, espnOf] = await Promise.all([
-    data.getForecasts({ position, search }), data.getAllRosters(), data.getEspnIdByFfa()]);
+  const [all, rosters] = await Promise.all([data.getForecasts({ position, search }), data.getAllRosters()]);
   const teamOf = new Map(rosters.map((r) => [String(r.ffa_id), r.team_id]));
 
-  let rows = all.map((r) => ({ ...r, player_id: espnOf.get(String(r.ffa_id)) ?? r.espn_id,
-    _team: teamOf.get(String(r.ffa_id)) ?? null }));
+  let rows = all.map((r) => ({ ...r, player_id: r.espn_id, _team: teamOf.get(String(r.ffa_id)) ?? null }));
   if (cov !== "ALL") rows = rows.filter((r) => r.coverage_class === cov);
   if (owner === "MINE") rows = rows.filter((r) => String(r._team) === String(teamId));
   if (owner === "OTHERS") rows = rows.filter((r) => r._team != null && String(r._team) !== String(teamId));
