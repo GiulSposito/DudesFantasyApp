@@ -1578,3 +1578,58 @@ A combinação mais característica que encontrei é **Poppins para títulos/lab
 
 [1]: https://sleeper.com/fantasy-football?utm_source=chatgpt.com "Fantasy Football on Sleeper — Run Your League Free Forever"
 [2]: https://www.sokosumi.com/tools/design-md/analysis/sleeper?utm_source=chatgpt.com "Sleeper DESIGN.md: colors, type, components | Sokosumi"
+
+---
+
+# Implementação no Dudes Fantasy (site `web/`)
+
+O que o site realmente usa desta guideline, e as decisões próprias da liga.
+
+## Idioma
+
+Interface em **português (pt-BR)**. Jargão de fantasy que a liga usa em inglês fica em
+inglês (waiver, lineup, trade, FLEX, D/ST). Números com vírgula decimal (`126,7`,
+`51,7%`, `+2,4 p.p.`), via `web/js/format.js`; o Plotly usa `separators: ",."`.
+
+## Navegação
+
+Quatro menus no navbar (`web/_quarto.yml`):
+
+* **Minha semana**: Painel, Confronto, Escalação
+* **Mercado**: Waivers, Trocas
+* **Liga**: Placar da rodada, Classificação e força
+* **Dados**: Jogadores, Projeções e fontes, Saúde dos dados
+
+A faixa de contexto (logo do time, semana, tag, "atualizado há X", seletores de time
+e captura) fica logo abaixo do título da página (`renderHeader()` em `web/js/app.js`).
+
+## Imagens
+
+Tudo derivado de ids que os marts já trazem; nada novo no bundle.
+
+* **Headshot de jogador**: CDN da ESPN a partir do `player_id` ESPN
+  (`headshotUrl()` / `avatar()` em `web/js/components.js`). Borda na cor da posição.
+* **D/ST**: logo do time NFL (`teamlogos/nfl/500/{abbr}.png`). As abreviações no
+  estilo FFA (`SFO`, `KCC`…) passam por `fmt.nflAbbr()`.
+* **Logo do time fantasy**: `logo_url` de `dimensions/teams` (`teamLogo()` /
+  `teamBadge()`).
+* **Fallback**: se a imagem não carregar, o avatar mostra as iniciais e o logo
+  mostra um monograma com o `abbrev`. Nunca fica imagem quebrada na tela.
+* `forecasts.espn_id` vem do xref histórico e está errado para alguns jogadores; a
+  página Jogadores usa `data.getEspnIdByFfa()` (rosters + free agents da execução).
+
+## Componentes adicionados
+
+* `winBar()`: barra de chance de vitória com o % dentro de cada lado.
+* `rangeBar()`: faixa P10–P90 com traço na mediana, escala comum de 0 a 40 pontos.
+* `moveSide()` + `.move-card`: cartão "entra / sai" usado em Escalação, Waivers,
+  Trocas e Painel.
+* `gainBar()`: rótulo, barra e delta.
+* `skeleton()`: esqueleto de carregamento enquanto o DuckDB-Wasm inicia. O
+  `data.js` já começa a iniciar o DuckDB quando o módulo carrega.
+* `rankTable(..., { sort })`: cabeçalhos ordenáveis.
+
+## Números de placar
+
+Barlow Condensed (600/700) só para números grandes: `.stat__value`, placares,
+pontos em cards. Poppins segue nos títulos e Inter no resto.

@@ -1,6 +1,6 @@
 // Plotly wrappers on one shared dark layout. window.Plotly is loaded by
 // js/head.html. Pages pass a container element + plain data; nothing here
-// touches the data layer. Frozen after M3 — pages depend on this surface.
+// touches the data layer. Pages depend on the exported surface.
 
 const INK = "#d8d8d8";
 const MUTED = "#9298ae";
@@ -18,6 +18,7 @@ export function baseLayout(overrides = {}) {
     paper_bgcolor: "rgba(0,0,0,0)",
     plot_bgcolor: "rgba(0,0,0,0)",
     font: { family: "Inter, sans-serif", color: INK, size: 12 },
+    separators: ",.",
     margin: { l: 52, r: 16, t: 16, b: 40 },
     xaxis: { gridcolor: GRID, zerolinecolor: GRID, tickfont: { color: MUTED }, automargin: true },
     yaxis: { gridcolor: GRID, zerolinecolor: GRID, tickfont: { color: MUTED }, automargin: true },
@@ -29,42 +30,6 @@ export function baseLayout(overrides = {}) {
 
 const CONFIG = { displayModeBar: false, responsive: true };
 function draw(el, traces, layout) { if (el) window.Plotly.react(el, traces, layout, CONFIG); }
-
-// Horizontal win-probability split bar.
-export function probabilityBar(el, { labelA, probA, labelB, probB }) {
-  draw(el, [
-    { type: "bar", orientation: "h", x: [probA], y: [""], marker: { color: ACCENT }, name: labelA, hovertemplate: `${labelA}: %{x:.1%}<extra></extra>` },
-    { type: "bar", orientation: "h", x: [probB], y: [""], marker: { color: BLUE }, name: labelB, hovertemplate: `${labelB}: %{x:.1%}<extra></extra>` },
-  ], baseLayout({
-    barmode: "stack", height: 64, margin: { l: 4, r: 4, t: 4, b: 4 },
-    xaxis: { range: [0, 1], showticklabels: false, showgrid: false },
-    yaxis: { showticklabels: false, showgrid: false }, showlegend: false,
-  }));
-}
-
-// P10 — P50 — P90 whisker per row.
-export function intervalRange(el, rows) {
-  const traces = rows.map((r) => ({
-    type: "scatter", x: [r.p10, r.p90], y: [r.label, r.label], mode: "lines+markers",
-    line: { color: r.color || ACCENT, width: 3 }, marker: { size: 7, color: r.color || ACCENT },
-    hovertemplate: `${r.label}<br>P10 %{x:.1f}<extra></extra>`, showlegend: false,
-  }));
-  rows.forEach((r) => traces.push({
-    type: "scatter", x: [r.p50], y: [r.label], mode: "markers",
-    marker: { size: 14, color: "#fff", symbol: "line-ns-open", line: { width: 3 } },
-    hovertemplate: `${r.label}<br>P50 %{x:.1f}<extra></extra>`, showlegend: false,
-  }));
-  draw(el, traces, baseLayout({ height: 50 + rows.length * 46, margin: { l: 130, r: 20, t: 8, b: 32 } }));
-}
-
-// One bar per starter, expected points, coloured by position.
-export function contributionBars(el, players) {
-  draw(el, [{
-    type: "bar", x: players.map((p) => p.label), y: players.map((p) => p.value),
-    marker: { color: players.map((p) => POS_COLOR[p.pos] || BLUE) },
-    hovertemplate: "%{x}<br>Expected %{y:.1f}<extra></extra>",
-  }], baseLayout({ height: 280, margin: { l: 40, r: 8, t: 8, b: 74 }, xaxis: { tickangle: -40, tickfont: { color: MUTED, size: 10 } } }));
-}
 
 // Generic labelled scatter. points: [{x,y,label,pos?,size?,color?}]
 function scatter(el, points, { xTitle, yTitle, height = 360, quadrantAt } = {}) {
@@ -82,7 +47,7 @@ function scatter(el, points, { xTitle, yTitle, height = 360, quadrantAt } = {}) 
   draw(el, [{
     type: "scatter", mode: "markers+text",
     x: points.map((p) => p.x), y: points.map((p) => p.y),
-    text: points.map((p) => p.label), textposition: "top center", textfont: { color: MUTED, size: 9 },
+    text: points.map((p) => p.label || ""), textposition: "top center", textfont: { color: MUTED, size: 10 },
     marker: {
       size: points.map((p) => p.size || 11),
       color: points.map((p) => p.color || (p.pos ? POS_COLOR[p.pos] : ACCENT) || ACCENT),
@@ -92,30 +57,24 @@ function scatter(el, points, { xTitle, yTitle, height = 360, quadrantAt } = {}) 
   }], layout);
 }
 
-// Lineup Lab — x=sim_mean (value), y=sim_sd (risk).
+// Lineup — x=sim_mean (value), y=sim_sd (risk). Only starters get a text
+// label (bench names collide); everyone has a hover.
 export function opportunityScatter(el, players) {
-  scatter(el, players.map((p) => ({ x: p.sim_mean, y: p.sim_sd, label: p.player_name?.split(" ").slice(-1)[0], pos: p.pos,
-    hover: `${p.player_name}<br>mean ${p.sim_mean?.toFixed(1)} · sd ${p.sim_sd?.toFixed(1)}` })),
-    { xTitle: "Expected points (sim mean)", yTitle: "Risk (sim sd)" });
+  scatter(el, players.map((p) => ({ x: p.sim_mean, y: p.sim_sd,
+    label: p.is_starter ? p.player_name?.split(" ").slice(-1)[0] : "", pos: p.pos,
+    size: p.is_starter ? 13 : 9,
+    hover: `${p.player_name}${p.is_starter ? " (titular)" : ""}<br>média ${p.sim_mean?.toFixed(1)} · desvio ${p.sim_sd?.toFixed(1)}` })),
+    { xTitle: "Pontos esperados (média simulada)", yTitle: "Risco (desvio da simulação)" });
 }
 
-// Waivers — x=Δ expected, y=Δ win probability. One point per add/drop.
-export function waiverScatter(el, recs) {
-  scatter(el, recs.map((r) => ({ x: r.delta_expected, y: r.delta_win_probability,
-    label: r.add_player_name?.split(" ").slice(-1)[0], color: ACCENT,
-    hover: `ADD ${r.add_player_name} / DROP ${r.drop_player_name}<br>+${r.delta_expected?.toFixed(1)} pts · ${(r.delta_win_probability * 100).toFixed(1)} pp` })),
-    { xTitle: "Δ expected points", yTitle: "Δ win probability", quadrantAt: { x: 0, y: 0 } });
-}
-
-// Trades — x=my Δ, y=their Δ, bubble size ~ trade_score.
+// Trades — x=my Δ, y=their Δ, bubble size ~ trade_score. Names only on hover.
 export function tradeScatter(el, recs) {
   const max = Math.max(1, ...recs.map((r) => r.trade_score || 0));
   scatter(el, recs.map((r) => ({ x: r.my_delta_expected, y: r.their_delta_expected,
-    label: r.receive_player_name?.split(" ").slice(-1)[0],
-    size: 8 + 22 * ((r.trade_score || 0) / max),
+    size: 9 + 18 * ((r.trade_score || 0) / max),
     color: r.partner_is_my_opponent ? WARN : ACCENT,
-    hover: `GET ${r.receive_player_name} / GIVE ${r.give_player_name} (${r.other_team_name})<br>you +${r.my_delta_expected?.toFixed(1)} · partner +${r.their_delta_expected?.toFixed(1)} · score ${r.trade_score?.toFixed(1)}` })),
-    { xTitle: "My Δ expected", yTitle: "Their Δ expected", quadrantAt: { x: 0, y: 0 } });
+    hover: `Recebe ${r.receive_player_name} · cede ${r.give_player_name}<br>${r.other_team_name}<br>você +${r.my_delta_expected?.toFixed(1)} · parceiro +${r.their_delta_expected?.toFixed(1)} · nota ${r.trade_score?.toFixed(1)}` })),
+    { xTitle: "Seu ganho (pontos esperados)", yTitle: "Ganho do parceiro", quadrantAt: { x: 0, y: 0 } });
 }
 
 // Heatmap. z: 2D array; x: col labels; y: row labels.
@@ -171,17 +130,18 @@ export function divergingBars(el, rows, { xTitle } = {}) {
     xaxis: { title: { text: xTitle, font: { color: MUTED } }, zeroline: true, zerolinecolor: "#4c5579", gridcolor: GRID } }));
 }
 
-// Slopegraph — two columns, one line per entity. rows: [{label, a, b}]
-export function slopegraph(el, rows, { aLabel = "before", bLabel = "after" } = {}) {
-  const traces = rows.map((r) => ({
-    type: "scatter", mode: "lines+markers+text", x: [0, 1], y: [r.a, r.b],
-    line: { color: r.b >= r.a ? GOOD : BAD, width: 2 }, marker: { size: 6 },
-    text: [r.label, ""], textposition: "middle left", textfont: { color: MUTED, size: 10 },
-    hovertemplate: `${r.label}: %{y:.1f}<extra></extra>`, showlegend: false,
-  }));
-  draw(el, traces, baseLayout({
-    height: 40 + rows.length * 22 + 40,
-    xaxis: { tickvals: [0, 1], ticktext: [aLabel, bLabel], range: [-0.35, 1.15], showgrid: false },
-    yaxis: { gridcolor: GRID },
+// Win-probability path across the week's snapshots. rows: [{tag, p, created_at}]
+export function winProbLine(el, rows, { label = "" } = {}) {
+  const x = rows.map((r, i) => `${i + 1}. ${r.tag}`);
+  draw(el, [{
+    type: "scatter", mode: "lines+markers", x, y: rows.map((r) => r.p),
+    line: { color: ACCENT, width: 2, shape: "linear" }, marker: { size: 8, color: ACCENT, line: { color: "#050921", width: 1 } },
+    hovertemplate: `${label}<br>%{x}: %{y:.1%}<extra></extra>`,
+  }], baseLayout({
+    height: 240, margin: { l: 48, r: 16, t: 8, b: 70 },
+    yaxis: { range: [0, 1], tickformat: ".0%", gridcolor: GRID, zeroline: false, tickfont: { color: MUTED } },
+    xaxis: { tickangle: -35, tickfont: { color: MUTED, size: 10 }, gridcolor: GRID },
+    shapes: [{ type: "line", xref: "paper", x0: 0, x1: 1, y0: 0.5, y1: 0.5, line: { color: "#4c5579", dash: "dot", width: 1 } }],
+    showlegend: false,
   }));
 }

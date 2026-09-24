@@ -1,9 +1,9 @@
 ---
-title: "League Analyzer"
+title: "Liga"
 ---
 
 ::: {#app}
-Loading…
+Carregando…
 :::
 
 <script type="module">

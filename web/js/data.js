@@ -174,3 +174,42 @@ export async function getDataHealth() {
   const rows = await q("SELECT * FROM data_health LIMIT 1", "data_health");
   return rows[0] || null;
 }
+
+// Forecast rows for a set of ffa_ids (cards that show several players at once).
+export async function getForecastsByIds(ffaIds) {
+  const ids = [...new Set(ffaIds.filter((x) => x != null).map((x) => `'${x}'`))];
+  if (!ids.length) return [];
+  return q(`SELECT * FROM forecasts WHERE ffa_id IN (${ids.join(",")})`, "forecasts");
+}
+
+// player_id -> nfl_team, for D/ST logos where a mart carries no team column.
+export async function getPlayerTeams() {
+  const rows = await q("SELECT player_id, nfl_team FROM players", "players");
+  return new Map(rows.map((r) => [String(r.player_id), r.nfl_team]));
+}
+
+// Every rostered player (all teams), for owner filters.
+export async function getAllRosters() {
+  return q("SELECT team_id, team_name, player_id, ffa_id FROM rosters", "rosters");
+}
+
+// ffa_id -> ESPN player_id as the decision engine bridged it this run (rosters +
+// free agents). forecasts.espn_id comes from the historical xref and is stale for
+// some players, so pictures and owners key on this map first.
+export async function getEspnIdByFfa() {
+  const [r, f] = await Promise.all([
+    q("SELECT ffa_id, player_id FROM rosters WHERE ffa_id IS NOT NULL", "rosters"),
+    q("SELECT ffa_id, player_id FROM free_agents WHERE ffa_id IS NOT NULL", "free_agents"),
+  ]);
+  return new Map([...f, ...r].map((x) => [String(x.ffa_id), x.player_id]));
+}
+
+// Win-probability path of one matchup across the week's snapshots.
+export async function getMatchupHistory(week, matchupId) {
+  return q(`SELECT * FROM matchup_history WHERE week = ${Number(week)} AND matchup_id = '${matchupId}'
+            ORDER BY created_at`, "matchup_history");
+}
+
+// Warm DuckDB-Wasm up as soon as the module loads: the first query then does
+// not pay the ~5-10 s engine start on top of its own work.
+loadManifest().then(() => db()).catch(() => { /* boot() reports the error */ });

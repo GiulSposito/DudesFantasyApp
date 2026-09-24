@@ -1,9 +1,9 @@
 ---
-title: "Trade Center"
+title: "Trocas"
 ---
 
 ::: {#app}
-Loading…
+Carregando…
 :::
 
 <script type="module">

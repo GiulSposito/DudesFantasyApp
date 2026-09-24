@@ -1,9 +1,9 @@
 ---
-title: "Player Explorer"
+title: "Jogadores"
 ---
 
 ::: {#app}
-Loading…
+Carregando…
 :::
 
 <script type="module">

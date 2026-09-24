@@ -41,3 +41,25 @@ build_consensus_history <- function(src, run, seasons = 3L) {
       consensus_type
     )
 }
+
+# history/matchup_history.parquet (contract section 26.1) - one row per run x
+# matchup for the current run's season, up to and including the current run,
+# so the frontend can chart how each matchup's win probability moved across the
+# week's snapshots (preview -> preTNF -> posTNF -> ... -> final).
+build_matchup_history <- function(src, run) {
+  runs <- src$decision_db$simulation_runs |>
+    filter(season == run$season, created_at <= run$created_at) |>
+    select(run_id, created_at)
+
+  src$decision_db$matchup_simulations |>
+    inner_join(runs, by = "run_id") |>
+    transmute(
+      run_id, created_at,
+      season = as.integer(season), week = as.integer(week), tag,
+      matchup_id = as.integer(matchup_id),
+      home_team_id = as.integer(home_team_id), away_team_id = as.integer(away_team_id),
+      home_expected, away_expected,
+      home_win_probability, away_win_probability
+    ) |>
+    arrange(created_at, matchup_id)
+}

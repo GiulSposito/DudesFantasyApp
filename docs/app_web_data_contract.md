@@ -132,7 +132,8 @@ web/
     │
     ├── history/
     │   ├── player_points.parquet
-    │   └── consensus_history.parquet
+    │   ├── consensus_history.parquet
+    │   └── matchup_history.parquet
     │
     └── draft/
         └── draft.parquet
@@ -1511,6 +1512,61 @@ This mart supports:
 * uncertainty analysis;
 * coverage analysis;
 * calibration research.
+
+---
+
+# 26.1 history/matchup_history.parquet
+
+## Grain
+
+```text
+1 row =
+1 decision run
+× 1 league matchup
+```
+
+Only runs of the current run's season, up to and including the current run
+(`created_at <= current.created_at`), so a bundle built for an older run never
+shows later snapshots.
+
+## Source
+
+```text
+decision_db$matchup_simulations
++ decision_db$simulation_runs (created_at)
+```
+
+## Logical PK
+
+```text
+run_id
+matchup_id
+```
+
+## Contract
+
+```text
+run_id
+created_at
+
+season
+week
+tag
+
+matchup_id
+
+home_team_id
+away_team_id
+
+home_expected
+away_expected
+
+home_win_probability
+away_win_probability
+```
+
+This mart supports the "how the win probability moved this week" chart on the
+Confronto page: filter by `week` + `matchup_id`, order by `created_at`.
 
 ---
 

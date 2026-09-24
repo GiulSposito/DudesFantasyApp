@@ -22,7 +22,8 @@ library(jsonlite)
   "current/trade_recommendations.parquet"   = c("run_id", "my_team_id", "other_team_id", "give_player_id", "receive_player_id"),
   "current/data_health.parquet"             = "run_id",
   "projections/source_projections.parquet"  = c("run_id", "ffa_id", "position", "data_src"),
-  "projections/source_accuracy.parquet"     = c("season", "data_src", "position")
+  "projections/source_accuracy.parquet"     = c("season", "data_src", "position"),
+  "history/matchup_history.parquet"        = c("run_id", "matchup_id")
 )
 
 .stop <- function(...) stop("validate_web_bundle: ", ..., call. = FALSE)

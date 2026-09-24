@@ -1,9 +1,9 @@
 ---
-title: "Waiver Wire Center"
+title: "Waivers"
 ---
 
 ::: {#app}
-Loading…
+Carregando…
 :::
 
 <script type="module">

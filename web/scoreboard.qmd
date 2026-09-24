@@ -1,9 +1,9 @@
 ---
-title: "Scoreboard"
+title: "Placar da rodada"
 ---
 
 ::: {#app}
-Loading…
+Carregando…
 :::
 
 <script type="module">

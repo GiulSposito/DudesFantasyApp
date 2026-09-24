@@ -6,23 +6,33 @@ project:
     - "js/**"
     - "vendor/**"
 
+lang: pt-BR
+
 website:
-  title: "Dudes Fantasy Cockpit"
+  title: "Dudes Fantasy"
   favicon: favicon.svg
   reader-mode: false
   navbar:
     background: "#050921"
     left:
-      - { text: "Command Center", href: index.qmd }
-      - { text: "Scoreboard",     href: scoreboard.qmd }
-      - { text: "Matchup",        href: matchup.qmd }
-      - { text: "Lineup",         href: lineup.qmd }
-      - { text: "Waivers",        href: waivers.qmd }
-      - { text: "Trades",         href: trades.qmd }
-      - { text: "League",         href: league.qmd }
-      - { text: "Players",        href: players.qmd }
-      - { text: "Projections",    href: projections.qmd }
-      - { text: "Data Health",    href: data-health.qmd }
+      - text: "Minha semana"
+        menu:
+          - { text: "Painel",    href: index.qmd }
+          - { text: "Confronto", href: matchup.qmd }
+          - { text: "Escalação", href: lineup.qmd }
+      - text: "Mercado"
+        menu:
+          - { text: "Waivers", href: waivers.qmd }
+          - { text: "Trocas",  href: trades.qmd }
+      - text: "Liga"
+        menu:
+          - { text: "Placar da rodada", href: scoreboard.qmd }
+          - { text: "Classificação e força", href: league.qmd }
+      - text: "Dados"
+        menu:
+          - { text: "Jogadores",          href: players.qmd }
+          - { text: "Projeções e fontes", href: projections.qmd }
+          - { text: "Saúde dos dados",    href: data-health.qmd }
 
 format:
   html:

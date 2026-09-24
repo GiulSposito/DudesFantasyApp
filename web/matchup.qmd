@@ -1,9 +1,9 @@
 ---
-title: "Matchup Center"
+title: "Confronto"
 ---
 
 ::: {#app}
-Loading…
+Carregando…
 :::
 
 <script type="module">

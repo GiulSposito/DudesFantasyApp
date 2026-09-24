@@ -1,9 +1,9 @@
 ---
-title: "Lineup Lab"
+title: "Escalação"
 ---
 
 ::: {#app}
-Loading…
+Carregando…
 :::
 
 <script type="module">

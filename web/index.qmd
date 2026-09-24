@@ -1,9 +1,9 @@
 ---
-title: "Command Center"
+title: "Painel da semana"
 ---
 
 ::: {#app}
-Loading…
+Carregando…
 :::
 
 <script type="module">

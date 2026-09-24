@@ -1,9 +1,9 @@
 ---
-title: "Projection Lab"
+title: "Projeções e fontes"
 ---
 
 ::: {#app}
-Loading…
+Carregando…
 :::
 
 <script type="module">
