@@ -4,6 +4,7 @@
 import * as data from "./data.js";
 import * as state from "./state.js";
 import * as fmt from "./format.js";
+import { skeleton, setPlayerTeams, teamLogo } from "./components.js";
 
 // ---- small DOM helpers (shared by pages) --------------------------------
 
@@ -37,26 +38,32 @@ export function mount(root, ...kids) {
 let _teams = [];
 let _run = null;
 
+// fantasy team row (team_id, team_name, abbrev, logo_url, is_my_team) by id
+export function team(id) {
+  return _teams.find((t) => String(t.team_id) === String(id)) || { team_id: id, team_name: String(id ?? "–") };
+}
+
 async function renderHeader() {
   let bar = document.getElementById("cockpit-header");
   if (!bar) {
     bar = el("div", { id: "cockpit-header" });
-    document.querySelector("main")?.prepend(bar);
+    const title = document.querySelector("#title-block-header");
+    if (title) title.after(bar); else document.querySelector("main")?.prepend(bar);
   }
   const s = state.get();
-  const teamSel = el("select", { onchange: (e) => state.set({ teamId: e.target.value }) },
+  const teamSel = el("select", { "aria-label": "Time", onchange: (e) => state.set({ teamId: e.target.value }) },
     ..._teams.map((t) => el("option", { value: t.team_id, selected: String(t.team_id) === String(s.teamId) ? "" : null }, t.team_name)));
   const runs = await data.getRuns().catch(() => []);
-  const runSel = el("select", { onchange: (e) => state.set({ runId: e.target.value }) },
+  const runSel = el("select", { "aria-label": "Captura", onchange: (e) => state.set({ runId: e.target.value }) },
     ...runs.map((r) => el("option", { value: r.run_id, selected: r.run_id === s.runId ? "" : null },
-      `${r.season} W${r.week} ${r.tag}`)));
+      `${r.season} · Semana ${r.week} · ${r.tag}`)));
 
   bar.replaceChildren(
-    el("span", { class: "brand" }, "DUDES"),
+    teamLogo(team(s.teamId), { size: 26 }),
     el("div", { class: "ctx" },
-      el("span", {}, `${_run.season} · Week ${_run.week} · ${_run.tag}`),
-      el("span", {}, _run.model_version),
-      el("span", {}, `updated ${fmt.since(_run.generated_at)}`)),
+      el("span", { class: "ctx__week" }, `Semana ${_run.week} · ${_run.season}`),
+      el("span", { class: "ctx__tag", title: "Momento da semana em que os dados foram capturados" }, _run.tag),
+      el("span", {}, `atualizado ${fmt.since(_run.generated_at)}`)),
     el("span", { class: "spring" }),
     teamSel, runSel,
   );
@@ -65,7 +72,7 @@ async function renderHeader() {
 export async function boot(pageName) {
   const app = document.getElementById("app");
   if (!app) return;
-  app.replaceChildren(banner("loading", "Loading…"));
+  app.replaceChildren(skeleton());
 
   let manifest;
   try {
@@ -81,6 +88,7 @@ export async function boot(pageName) {
   const mine = _teams.find((t) => t.is_my_team);
   state.init(manifest, mine ? mine.team_id : (_teams[0]?.team_id ?? null));
   _run = await data.getRun();
+  setPlayerTeams(await data.getPlayerTeams().catch(() => new Map()));
 
   await renderHeader();
 
@@ -90,7 +98,7 @@ export async function boot(pageName) {
       await mod.render(app);
     } catch (e) {
       console.error(e);
-      app.replaceChildren(banner("error", `Failed to render: ${e.message}`));
+      app.replaceChildren(banner("error", `Erro ao montar a página: ${e.message}`));
     }
     await renderHeader();
   };

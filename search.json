@@ -2,65 +2,65 @@
   {
     "objectID": "league.html",
     "href": "league.html",
-    "title": "League Analyzer",
+    "title": "Liga",
     "section": "",
-    "text": "Loading…"
+    "text": "Carregando…"
   },
   {
     "objectID": "lineup.html",
     "href": "lineup.html",
-    "title": "Lineup Lab",
+    "title": "Escalação",
     "section": "",
-    "text": "Loading…"
+    "text": "Carregando…"
   },
   {
     "objectID": "waivers.html",
     "href": "waivers.html",
-    "title": "Waiver Wire Center",
+    "title": "Waivers",
     "section": "",
-    "text": "Loading…"
+    "text": "Carregando…"
   },
   {
     "objectID": "matchup.html",
     "href": "matchup.html",
-    "title": "Matchup Center",
+    "title": "Confronto",
     "section": "",
-    "text": "Loading…"
+    "text": "Carregando…"
   },
   {
     "objectID": "trades.html",
     "href": "trades.html",
-    "title": "Trade Center",
+    "title": "Trocas",
     "section": "",
-    "text": "Loading…"
+    "text": "Carregando…"
   },
   {
     "objectID": "players.html",
     "href": "players.html",
-    "title": "Player Explorer",
+    "title": "Jogadores",
     "section": "",
-    "text": "Loading…"
+    "text": "Carregando…"
   },
   {
     "objectID": "projections.html",
     "href": "projections.html",
-    "title": "Projection Lab",
+    "title": "Projeções e fontes",
     "section": "",
-    "text": "Loading…"
+    "text": "Carregando…"
   },
   {
     "objectID": "data-health.html",
     "href": "data-health.html",
-    "title": "Data & Model Health",
+    "title": "Saúde dos dados",
     "section": "",
-    "text": "Loading…"
+    "text": "Carregando…"
   },
   {
     "objectID": "index.html",
     "href": "index.html",
-    "title": "Command Center",
+    "title": "Painel da semana",
     "section": "",
-    "text": "Loading…"
+    "text": "Carregando…"
   },
   {
     "objectID": "DEPLOY.html",
@@ -114,8 +114,8 @@
   {
     "objectID": "scoreboard.html",
     "href": "scoreboard.html",
-    "title": "Scoreboard",
+    "title": "Placar da rodada",
     "section": "",
-    "text": "Loading…"
+    "text": "Carregando…"
   }
 ]

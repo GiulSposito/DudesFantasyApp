@@ -1,6 +1,6 @@
 {
   "schema_version": "1.0.0",
-  "generated_at": "2026-09-24T20:12:55Z",
+  "generated_at": "2026-09-24T21:32:43Z",
   "current": {
     "run_id": "2026-W03-preTNF-20260924T170816",
     "season": 2026,
@@ -30,7 +30,8 @@
     "source_projections": "projections/source_projections.parquet",
     "source_accuracy": "projections/source_accuracy.parquet",
     "player_points": "history/player_points.parquet",
-    "consensus_history": "history/consensus_history.parquet"
+    "consensus_history": "history/consensus_history.parquet",
+    "matchup_history": "history/matchup_history.parquet"
   },
   "privacy": "public"
 }
