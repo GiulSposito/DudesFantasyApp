@@ -1,16 +1,16 @@
 {
   "schema_version": "1.0.0",
-  "generated_at": "2026-09-24T22:01:41Z",
+  "generated_at": "2026-09-27T14:05:39Z",
   "current": {
-    "run_id": "2026-W03-preTNF-20260924T170816",
+    "run_id": "2026-W03-preSundayGames-20260927T110256",
     "season": 2026,
     "week": 3,
-    "tag": "preTNF",
+    "tag": "preSundayGames",
     "model_version": "player-mc-v2",
     "n_sim": 10000,
-    "created_at": "2026-09-24T20:12:51Z",
-    "ffa_timestamp": "2026-09-24T20:07:06Z",
-    "espn_timestamp": "2026-09-24T20:05:02Z"
+    "created_at": "2026-09-27T14:05:35Z",
+    "ffa_timestamp": "2026-09-27T14:02:19Z",
+    "espn_timestamp": "2026-09-27T14:00:20Z"
   },
   "datasets": {
     "runs": "runs.parquet",
