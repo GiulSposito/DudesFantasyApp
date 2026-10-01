@@ -110,6 +110,27 @@ run_decision_pipeline <- function(season, week, tag,
     }
   }
 
+  # --- Phase 3c: ruled-out rostered players --------------------------------
+  # FFA sources stop listing a player once he is ruled out (IR / OUT /
+  # suspended) instead of projecting 0, so a rostered starter in that state has
+  # no forecast and would trip check_starters_have_forecast(). ESPN's status
+  # makes 0 the right forecast: add a degenerate all-zero row. Only these
+  # statuses - an ACTIVE starter with no projection is still a data problem.
+  ruled_out <- bridged |>
+    filter(!is.na(ffa_id), !ffa_id %in% sims$ffa_id) |>
+    semi_join(espn_snap$injury |>
+                filter(injury_status %in% c("OUT", "INJURY_RESERVE", "SUSPENSION")),
+              by = "player_id") |>
+    distinct(ffa_id, .keep_all = TRUE)
+  if (nrow(ruled_out) > 0L) {
+    sims <- bind_rows(sims, ruled_out |> transmute(
+      season, week, tag, ffa_id, espn_id = player_id, pos = .norm_pos(position),
+      n_sources = 0L, projection = 0, draws = list(rep(0, n_sim))
+    ))
+    message(glue::glue("ruled-out players with no projection, forecast 0: ",
+                       "{paste(ruled_out$player_name, collapse = ', ')}"))
+  }
+
   draws_by_ffa <- set_names(sims$draws, as.character(sims$ffa_id))
 
   run_id    <- new_run_id(season, week, tag)
