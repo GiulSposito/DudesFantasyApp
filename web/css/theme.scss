@@ -862,3 +862,113 @@ table.cockpit-table th.sortable:hover { color: var(--ink-2); }
 .note-inline { font-size: 12px; color: var(--muted); margin-top: var(--sp-2); }
 .btn-more { margin-top: var(--sp-3); }
 .cockpit-card, .stat, .move-card { overflow-wrap: anywhere; }
+
+// ---- trade simulator (pages/trades.js) ------------------------------
+// identity pair matches charts.js SIM_ME / SIM_THEM (dataviz-validated)
+
+.sim-pickers {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 0.8fr) minmax(0, 1fr);
+  gap: var(--sp-3);
+  align-items: end;
+}
+.sim-pickers .field { width: 100%; }
+@media (max-width: 760px) {
+  .sim-pickers { grid-template-columns: minmax(0, 1fr); }
+  .sim-pickers .move-card__arrow { display: none; }
+}
+.sim-card { margin-top: var(--sp-3); }
+.sim-card__players {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  gap: var(--sp-3);
+  align-items: center;
+}
+@media (max-width: 560px) {
+  .sim-card__players { grid-template-columns: minmax(0, 1fr); }
+  .sim-card__players .move-card__arrow { display: none; }
+}
+.sim-side { display: flex; gap: 12px; align-items: center; min-width: 0; padding: 4px; border-radius: 8px; }
+.sim-side__text { min-width: 0; }
+.sim-side__label { font-size: 10px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; }
+.sim-side__name { color: var(--ink); font-weight: 600; font-size: 16px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sim-side__meta { color: var(--muted); font-size: 12px; }
+.player-link:hover .sim-side__name { color: var(--accent); }
+
+.sim-lenses {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--sp-3);
+  margin-top: var(--sp-4);
+}
+@media (max-width: 900px) { .sim-lenses { grid-template-columns: minmax(0, 1fr); } }
+.sim-lens {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: var(--sp-3);
+  min-width: 0;
+}
+.sim-lens__title { font-weight: 700; color: var(--ink); letter-spacing: 0.02em; }
+.sim-lens__delta {
+  font-family: "Barlow Condensed", "Inter", sans-serif;
+  font-size: 30px;
+  font-weight: 700;
+  line-height: 1.1;
+  margin-top: var(--sp-2);
+}
+.sim-lens__unit { font-size: 12px; color: var(--muted); margin-left: 4px; font-family: "Inter", sans-serif; font-weight: 400; }
+.sim-lens__foot { font-size: 12px; color: var(--ink-2); margin-top: var(--sp-2); border-top: 1px solid var(--line); padding-top: var(--sp-2); }
+.sim-bars { margin-top: var(--sp-2); display: grid; gap: 6px; }
+.sim-bar {
+  display: grid;
+  grid-template-columns: 48px minmax(0, 1fr) 40px auto;
+  gap: var(--sp-2);
+  align-items: center;
+  font-size: 12px;
+}
+.sim-bar__who { color: var(--muted); }
+.sim-bar__v { text-align: right; font-variant-numeric: tabular-nums; color: var(--ink); }
+.sim-vor {
+  font-size: 10px;
+  color: var(--muted);
+  background: var(--surface-3);
+  border-radius: 999px;
+  padding: 1px 6px;
+  white-space: nowrap;
+}
+
+.sim-verdict {
+  display: grid;
+  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
+  gap: var(--sp-4);
+  margin-top: var(--sp-4);
+  align-items: start;
+}
+@media (max-width: 760px) { .sim-verdict { grid-template-columns: minmax(0, 1fr); } }
+.sim-gauge {
+  display: grid;
+  grid-template-columns: 70px minmax(0, 1fr) 110px;
+  gap: var(--sp-2);
+  align-items: center;
+  margin: 6px 0;
+  font-size: 13px;
+}
+.sim-gauge__who { font-weight: 600; }
+.sim-gauge__track { position: relative; height: 10px; background: var(--surface-2); border-radius: 5px; }
+.sim-gauge__track::after {
+  content: ""; position: absolute; left: 50%; top: -3px; bottom: -3px; width: 1px; background: var(--muted);
+}
+.sim-gauge__fill { position: absolute; top: 0; bottom: 0; border-radius: 5px; }
+.sim-gauge__fill.pos { background: var(--good); }
+.sim-gauge__fill.neg { background: var(--bad); }
+.sim-gauge__v { text-align: right; font-variant-numeric: tabular-nums; }
+.sim-verdict__text { margin-top: var(--sp-2); color: var(--ink); font-weight: 600; }
+.sim-sliders { display: grid; gap: 6px; }
+.sim-slider { display: grid; grid-template-columns: 90px minmax(0, 1fr) 40px; gap: var(--sp-2); align-items: center; font-size: 12px; color: var(--ink-2); }
+.sim-slider input { width: 100%; accent-color: var(--accent); }
+.sim-slider__v { text-align: right; font-variant-numeric: tabular-nums; color: var(--muted); }
+.sim-how { margin-top: var(--sp-4); font-size: 12px; color: var(--muted); }
+.sim-how summary { cursor: pointer; color: var(--ink-2); }
+.sim-how ul { margin: var(--sp-2) 0 0; padding-left: 18px; }
+.sim-how li { margin: 4px 0; }
