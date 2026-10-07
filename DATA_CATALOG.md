@@ -139,7 +139,7 @@ Existe um modelo expandido alternativo de 8 tabelas em `R/api/nfl_league.R::nfl_
 
 ### `espn_db` --- liga no ESPN Fantasy (só em `data/`, só 2026)
 
-`R/pipeline/data_pipeline_espn.R`. Um único `dm` de 12 tabelas montado de um snapshot combinado (`espn_snapshot()`) + o pool de jogadores.
+`R/pipeline/data_pipeline_espn.R`. Um único `dm` de 14 tabelas montado de um snapshot combinado (`espn_snapshot()`) + o pool de jogadores + times NFL e calendário de jogos (`espn_pro_schedule()`, view season-level `proTeamSchedules_wl`).
 
 | tabela | linhas | PK | o que é |
 |------------------|------------------|------------------|------------------|
@@ -155,8 +155,10 @@ Existe um modelo expandido alternativo de 8 tabelas em `R/api/nfl_league.R::nfl_
 | `espn_rosters` | 209 | `season, week, tag, timestamp, team_id, player_id` | quem estava rosterado por qual time: `lineup_slot`, `is_starter`/`is_bench`/`is_ir`, `lineup_locked` (bool, `NA` em snapshots antigos), aquisição, `% owned/started`, pontos |
 | `espn_matchups` | 98 | `season, week, tag, timestamp, matchup_id` | confronto H2H: pontos real + projetado por lado, `winner`, `playoff_tier_type` |
 | `espn_draft` | 210 | `season, overall_pick` | draft board: `round, round_pick, team_id, player_id, bid_amount, keeper, trade_locked` |
+| `espn_pro_teams` | 33 | `season, pro_team_id` | times NFL (inclui `FA`, id 0): `pro_team` (sigla), `location`, `name`, `conference` (AFC/NFC), **`bye_week`**, `dst_player_id` (id ESPN do D/ST) --- fonte do bye no motor de decisão |
+| `espn_pro_games` | 272 | `season, game_id` | calendário NFL da temporada inteira, 1 linha por jogo: `week`, `game_date` (UTC), home/away `pro_team_id` + sigla, `start_time_tbd`, `stats_official`, `valid_for_locking` |
 
-**FKs:** `espn_team_standings` / `espn_rosters` / `espn_matchups` (home + away) / `espn_draft` `(season, team_id) → espn_teams`; `espn_rosters` / `espn_player_injury_status` / `espn_players_points` / `espn_draft` `(season, player_id) → espn_players`.
+**FKs:** `espn_team_standings` / `espn_rosters` / `espn_matchups` (home + away) / `espn_draft` `(season, team_id) → espn_teams`; `espn_rosters` / `espn_player_injury_status` / `espn_players_points` / `espn_draft` `(season, player_id) → espn_players`. `espn_pro_games` (home + away) `(season, pro_team_id) → espn_pro_teams`; `espn_players.pro_team_id` junta com `espn_pro_teams` sem FK declarada.
 
 ### `analytical_db` --- base analítica projeção x realizado
 

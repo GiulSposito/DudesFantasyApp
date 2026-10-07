@@ -99,11 +99,24 @@ select_espn_snapshot <- function(espn_db, season, week, tag) {
       mutate(player_id = as.integer(player_id))
   }
 
+  # NFL teams on bye this week (ESPN proTeamSchedules_wl, see importEspn())
+  pro_teams <- if ("espn_pro_teams" %in% names(espn_db)) {
+    espn_db$espn_pro_teams |> filter(season == !!season)
+  } else tibble()
+  if (nrow(pro_teams) == 0L) {
+    warning(glue::glue("espn_pro_teams has no {season} rows - bye weeks unknown; ",
+                       "re-run importEspn()"), call. = FALSE)
+    bye_teams <- character()
+  } else {
+    bye_teams <- pro_teams |> filter(bye_week == !!week) |> pull(pro_team)
+  }
+
   list(
     rosters      = rosters,
     matchups     = matchups,
     injury       = injury,
     realized     = realized,
+    bye_teams    = bye_teams,
     roster_slots = espn_db$espn_roster_slots |> filter(season == !!season),
     teams        = espn_db$espn_teams |> filter(season == !!season),
     # the fantasy-relevant player universe (free agents = players - rosters), spec 13.

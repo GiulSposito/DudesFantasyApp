@@ -461,7 +461,7 @@ source("R/pipeline/data_pipeline_espn.R")
 
 Lê `.season` / `.week` de `config/config.yml`, busca um snapshot da liga no ESPN
 (1 request combinado) mais o pool de jogadores e suas projeções/pontos, e faz
-upsert de um único objeto `dm` com 12 tabelas `espn_*` em `data/espn_db.rds`:
+upsert de um único objeto `dm` com 14 tabelas `espn_*` em `data/espn_db.rds`:
 `espn_league`, `espn_members`, `espn_teams`, `espn_team_standings`,
 `espn_roster_slots`, `espn_scoring_rules`, `espn_players`,
 `espn_player_injury_status`, `espn_players_points` (projetado + real via

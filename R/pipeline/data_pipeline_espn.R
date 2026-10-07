@@ -38,7 +38,11 @@ source("./R/api/espn_fantasy_client.R")
 # upsert a dm into an on-disk .rds (update existing rows by PK, insert new ones)
 updateDB <- function(db, db_file) {
   if (file.exists(db_file)) {
-    rc <- .reconcile_dm_cols(readRDS(db_file), db)
+    old <- readRDS(db_file)
+    # a table new to this code version has no upsert target on disk yet: seed it
+    new_tbls <- setdiff(names(db), names(old))
+    if (length(new_tbls) > 0L) old <- dm(old, dm_select_tbl(db, all_of(new_tbls)))
+    rc <- .reconcile_dm_cols(old, db)
     db <- dm_rows_upsert(rc$a, rc$b, in_place = FALSE)
   }
   saveRDS(db, db_file)
@@ -77,7 +81,8 @@ dm_draw_png <- function(dm, ..., file, width = 2400) {
 
 # one combined league request (mSettings, mStatus, mTeam, mRoster, mStandings,
 # mMatchupScore, mDraftDetail) parsed into league / members / teams /
-# roster_slots / scoring_rules / rosters / matchups / draft + the raw JSON
+# roster_slots / scoring_rules / rosters / matchups / draft + the raw JSON,
+# plus the season-level NFL teams + game schedule (proTeamSchedules_wl)
 getEspnSnapshot <- function(client, .season, .week, .tag, .timestamp) {
   snap <- espn_snapshot(
     client,
@@ -85,6 +90,7 @@ getEspnSnapshot <- function(client, .season, .week, .tag, .timestamp) {
     include_available = FALSE,
     include_transactions = FALSE
   )
+  snap$pro_schedule <- espn_pro_schedule(client)
   saveEspnTemp(snap, "espn_snapshot", .season, .week, .tag, .timestamp)
   return(snap)
 }
@@ -131,6 +137,20 @@ buildEspnDB <- function(snap, pool, .season, .week, .tag, .timestamp) {
     mutate(season = .season) |>
     distinct(season, lineup_slot_id, .keep_all = TRUE) |>
     select(season, lineup_slot_id, lineup_slot, count)
+
+  # NFL teams (bye week, conference) + full-season NFL game schedule. Season-level
+  # dimensions like espn_players: re-upserted every run, latest version wins
+  # (game dates / stats_official change during the season).
+  espn_pro_teams <- .espn_require_rows(snap$pro_schedule$pro_teams, "pro_teams") |>
+    mutate(season = .season) |>
+    select(season, pro_team_id, pro_team, location, name, conference, bye_week,
+           dst_player_id)
+
+  espn_pro_games <- .espn_require_rows(snap$pro_schedule$pro_games, "pro_games") |>
+    mutate(season = .season) |>
+    select(season, game_id, week, game_date, home_pro_team_id, home_pro_team,
+           away_pro_team_id, away_pro_team, start_time_tbd, stats_official,
+           valid_for_locking)
 
   espn_scoring_rules <- snap$scoring_rules |>
     select(-any_of("points_overrides")) |>
@@ -244,7 +264,8 @@ buildEspnDB <- function(snap, pool, .season, .week, .tag, .timestamp) {
   dm(
     espn_league, espn_members, espn_teams, espn_roster_slots, espn_scoring_rules,
     espn_players, espn_team_standings, espn_player_injury_status,
-    espn_players_points, espn_rosters, espn_matchups, espn_draft
+    espn_players_points, espn_rosters, espn_matchups, espn_draft,
+    espn_pro_teams, espn_pro_games
   ) |>
     dm_add_pk(espn_league,               c(league_id, season), check = TRUE) |>
     dm_add_pk(espn_members,              member_id, check = TRUE) |>
@@ -259,6 +280,8 @@ buildEspnDB <- function(snap, pool, .season, .week, .tag, .timestamp) {
     dm_add_pk(espn_rosters,              c(season, week, tag, timestamp, team_id, player_id), check = TRUE) |>
     dm_add_pk(espn_matchups,             c(season, week, tag, timestamp, matchup_id), check = TRUE) |>
     dm_add_pk(espn_draft,                c(season, overall_pick), check = TRUE) |>
+    dm_add_pk(espn_pro_teams,            c(season, pro_team_id), check = TRUE) |>
+    dm_add_pk(espn_pro_games,            c(season, game_id), check = TRUE) |>
     dm_add_fk(espn_team_standings,       c(season, team_id),      espn_teams) |>
     dm_add_fk(espn_rosters,              c(season, team_id),      espn_teams) |>
     dm_add_fk(espn_rosters,              c(season, player_id),    espn_players) |>
@@ -267,7 +290,11 @@ buildEspnDB <- function(snap, pool, .season, .week, .tag, .timestamp) {
     dm_add_fk(espn_matchups,             c(season, home_team_id), espn_teams) |>
     dm_add_fk(espn_matchups,             c(season, away_team_id), espn_teams) |>
     dm_add_fk(espn_draft,                c(season, team_id),      espn_teams) |>
-    dm_add_fk(espn_draft,                c(season, player_id),    espn_players)
+    dm_add_fk(espn_draft,                c(season, player_id),    espn_players) |>
+    # no espn_players -> espn_pro_teams FK (join on pro_team_id): an FK onto a
+    # table that predates espn_pro_teams would not survive updateDB()'s upsert
+    dm_add_fk(espn_pro_games,            c(season, home_pro_team_id), espn_pro_teams) |>
+    dm_add_fk(espn_pro_games,            c(season, away_pro_team_id), espn_pro_teams)
 }
 
 # ---- orchestrator ------------------------------------------------------

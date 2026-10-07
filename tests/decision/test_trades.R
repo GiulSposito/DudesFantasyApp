@@ -98,6 +98,17 @@ stopifnot(
                                   max_receive_per_pos = 3L, top_n = 10L))
 )
 
+# bye week: RB3 (mine) and WR12 (partner) on a bye team are never given or
+# received - the rank-1 swap above disappears
+cp_bye <- cp |> mutate(nfl_team = if_else(ffa_id %in% c(3L, 12L), "KC", "BUF"))
+out_bye <- recommend_trades(cp_bye, c(espn_snap, list(bye_teams = "KC")), draws,
+                            "TESTRUN", 2026, 1, "preview", team_id = 10L,
+                            max_give = 5L, max_receive_per_pos = 3L, top_n = 10L)
+stopifnot(
+  nrow(out_bye) > 0,
+  !any(c(3L, 12L) %in% c(out_bye$give_ffa_id, out_bye$receive_ffa_id))
+)
+
 # team_id = NULL -> advise every team; each ranked independently from 1, and the
 # per-team slice is identical to asking for that team alone (spec 43).
 all_teams <- recommend_trades(cp, espn_snap, draws, "TESTRUN", 2026, 1, "preview",

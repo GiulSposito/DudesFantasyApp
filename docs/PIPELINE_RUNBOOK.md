@@ -41,7 +41,7 @@ source("R/pipeline/data_pipeline.R")
 **ingestão → decision engine → web bundle → publish**. Roda, em sequência:
 
 - `importFfa()` --- scrape do `ffanalytics` (~10 sites: CBS, ESPN, FantasyPros, FFToday, FleaFlicker, FanDuel, NFL, RTSports, Walterfootball, ...), calcula as projeções de consenso com `config/score_settings.yml`, e faz upsert em `data/ffa_db.rds` (5 tabelas). Leva alguns minutos. **Falha de site é silenciosa e parcial** --- se uma fonte cair, o scrape continua sem ela; confira a contagem de `data_src` no fim.
-- `importEspn()` --- um snapshot combinado da liga + o pool de jogadores via API ESPN, upsert em `data/espn_db.rds` (12 tabelas).
+- `importEspn()` --- um snapshot combinado da liga + o pool de jogadores via API ESPN, upsert em `data/espn_db.rds` (14 tabelas, incl. times NFL + calendário de jogos via `proTeamSchedules_wl`).
 - `run_decision_pipeline(.season, .week, .tag)` --- passo 4 abaixo; devolve `res`.
 - `build_web_bundle(result = res, privacy = "public")` --- passo 7 abaixo.
 - `quarto publish gh-pages web` --- render + push para `origin/gh-pages`. Pule com `.publish <- FALSE` no bloco de parâmetros.

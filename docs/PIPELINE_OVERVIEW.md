@@ -60,7 +60,7 @@ Orquestrado por `R/pipeline/data_pipeline.R`, bloco de parâmetros
   matchups, draft, tudo numa requisição) mais o pool completo de
   jogadores (`espn_all_players()` + `espn_player_stats()`). Autenticado
   via cookies de sessão (`ESPN_S2`, `ESPN_SWID`) em
-  `config/config.yml`. Upsert em `data/espn_db.rds` (12 tabelas).
+  `config/config.yml`. Upsert em `data/espn_db.rds` (14 tabelas).
 - Cache bruto de cada resposta em `data/temp/*.rds` --- permite
   reprocessar sem bater na rede de novo.
 - `.tag` marca *quando* na semana o snapshot foi capturado (`preview`,

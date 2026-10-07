@@ -292,14 +292,75 @@ espn_game_meta <- function(client = espn_client()) {
   .espn_request(client, url)
 }
 
-espn_season_meta <- function(client = espn_client()) {
+espn_season_meta <- function(client = espn_client(), views = NULL) {
   url <- sprintf(
     "%s/apis/v3/games/%s/seasons/%d",
     client$host,
     client$game,
     client$season
   )
-  .espn_request(client, url)
+  .espn_request(client, url, views = views)
+}
+
+# NFL (pro) teams of the season - bye week, conference, D/ST player id.
+.espn_parse_pro_teams <- function(raw) {
+  teams <- raw$settings$proTeams %||% list()
+  if (length(teams) == 0L) return(tibble::tibble())
+
+  purrr::map_dfr(teams, function(t) {
+    universe <- .espn_int(t$universeId)
+    tibble::tibble(
+      pro_team_id   = .espn_int(t$id),
+      pro_team      = .espn_chr(t$abbrev),
+      location      = .espn_chr(t$location),
+      name          = .espn_chr(t$name),
+      conference    = dplyr::case_when(universe == 1L ~ "AFC", universe == 2L ~ "NFC"),
+      bye_week      = .espn_int(t$byeWeek),
+      # teamPlayersByPosition: position id -> pseudo-player id (16 = D/ST; 14/15
+      # are positions this league does not use)
+      dst_player_id = .espn_int(t$teamPlayersByPosition[["16"]])
+    )
+  })
+}
+
+# Full-season NFL game schedule - one row per game (each game is listed under
+# both of its teams in the payload, hence the distinct()).
+.espn_parse_pro_games <- function(raw) {
+  teams <- raw$settings$proTeams %||% list()
+  games <- purrr::flatten(purrr::flatten(purrr::map(teams, "proGamesByScoringPeriod")))
+  if (length(games) == 0L) return(tibble::tibble())
+
+  pro_map <- espn_pro_team_map()
+  purrr::map_dfr(games, function(g) {
+    tibble::tibble(
+      game_id           = .espn_int(g$id),
+      week              = .espn_int(g$scoringPeriodId),
+      game_date         = .espn_date_ms(g$date),
+      home_pro_team_id  = .espn_int(g$homeProTeamId),
+      away_pro_team_id  = .espn_int(g$awayProTeamId),
+      start_time_tbd    = .espn_lgl(g$startTimeTBD),
+      stats_official    = .espn_lgl(g$statsOfficial),
+      valid_for_locking = .espn_lgl(g$validForLocking)
+    )
+  }) |>
+    dplyr::distinct(game_id, .keep_all = TRUE) |>
+    dplyr::left_join(dplyr::rename(pro_map, home_pro_team = pro_team),
+                     by = c("home_pro_team_id" = "pro_team_id")) |>
+    dplyr::left_join(dplyr::rename(pro_map, away_pro_team = pro_team),
+                     by = c("away_pro_team_id" = "pro_team_id")) |>
+    dplyr::arrange(week, game_date, game_id)
+}
+
+# Season-level (not league-scoped, no auth needed) view proTeamSchedules_wl.
+# The rest of the payload (typeNames enums, statIdToOverridePosition, ...) stays
+# in `raw`.
+espn_pro_schedule <- function(client = espn_client()) {
+  raw <- espn_season_meta(client, views = "proTeamSchedules_wl")
+  list(
+    pro_teams = .espn_parse_pro_teams(raw),
+    pro_games = .espn_parse_pro_games(raw),
+    raw       = raw
+  )
 }
 
 espn_current_week <- function(client = espn_client()) {

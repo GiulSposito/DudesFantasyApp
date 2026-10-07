@@ -193,8 +193,11 @@ recommend_free_agents <- function(current_players, free_agents, espn_snap,
   # DROP pool: the weakest kept players + roster dead weight (unmapped / no
   # forecast, not IR) - the latter models "roster full, drop the stash" (spec 21).
   # Locked players excluded - their game is over, dropping them is not a decision.
+  # Bye-week players too - their forecast 0 is a one-week hole, not their value.
+  bye_ffa <- my$ffa_id[my$nfl_team %in% espn_snap$bye_teams]
   drop_pool <- bind_rows(
-    base |> filter(!is_locked, !ffa_id %in% locked_ffa) |> arrange(sim_mean) |> head(max_drops),
+    base |> filter(!is_locked, !ffa_id %in% locked_ffa, !ffa_id %in% bye_ffa) |>
+      arrange(sim_mean) |> head(max_drops),
     my |> filter(is.na(ffa_id) | is.na(sim_mean), !is_ir) |>
       transmute(ffa_id = as.integer(ffa_id), pos, position, sim_mean = NA_real_,
                 eligible_slot_ids, player_name, espn_id)

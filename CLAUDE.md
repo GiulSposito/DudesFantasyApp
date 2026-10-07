@@ -29,7 +29,7 @@ the project root**. Open `DudesApp.Rproj` in RStudio or `setwd()` there first.
   (`.season`, `.week`, `.tag`), then `source("R/pipeline/data_pipeline.R")`. It runs
   the whole journey in sequence: `importFfa()` (scrapes `ffanalytics`, upserts
   `data/ffa_db.rds`) → `importEspn()` (pulls one ESPN snapshot + player pool via
-  `R/api/espn_fantasy_client.R`, upserts `data/espn_db.rds`, 12 `espn_*` tables) →
+  `R/api/espn_fantasy_client.R`, upserts `data/espn_db.rds`, 14 `espn_*` tables) →
   `run_decision_pipeline()` (the Monte-Carlo decision engine, `R/decision/`, writes
   `data/decision_db.rds`) → `build_web_bundle()` (Parquet + `manifest.json` under
   `web/data/`) → `quarto publish gh-pages web` (skip with `.publish <- FALSE`). Full
@@ -82,7 +82,7 @@ scrape+API       orchestrate           dm databases       Monte-Carlo           
   `*_old.R` scratch siblings live in `archive/R/pipeline/` — do not run them.
 - **`data/*_db.rds`** — each file is a single `dm` object (a set of related tables
   with keys), not a plain data frame. Load with `readRDS()`, access tables as
-  `db$table_name`. Live tables: `ffa_db`, `espn_db` (12 `espn_*` tables),
+  `db$table_name`. Live tables: `ffa_db`, `espn_db` (14 `espn_*` tables),
   `analytical_db` (historical projection-vs-actual residuals, feeds the decision
   engine's Monte Carlo — rebuilt rarely, not part of the weekly cycle), and
   `decision_db` (7 tables of forecasts/recommendations, one `run_id` per pipeline

@@ -35,7 +35,11 @@ source("./R/api/ffa_projection.R")
 # update existing rows by PK, insert new ones, persist to an on-disk .rds
 updateDB <- function(db, db_file){
   if(file.exists(db_file)){
-    rc <- .reconcile_dm_cols(readRDS(db_file), db)
+    old <- readRDS(db_file)
+    # a table new to this code version has no upsert target on disk yet: seed it
+    new_tbls <- setdiff(names(db), names(old))
+    if (length(new_tbls) > 0L) old <- dm(old, dm_select_tbl(db, all_of(new_tbls)))
+    rc <- .reconcile_dm_cols(old, db)
     db <- dm_rows_upsert(rc$a, rc$b, in_place = F)
   }
   saveRDS(db, db_file)

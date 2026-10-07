@@ -80,6 +80,9 @@ recommend_trades <- function(current_players, espn_snap, draws_by_ffa,
   # can't be moved either but was never in the lineup, so it isn't pinned - it's
   # just excluded from the candidate pool below, same as recommend_lineups().
   pin_of <- function(base) intersect(locked_all, base$ffa_id[base$is_starter])
+  # bye-week players forecast 0 this week - a one-week hole, not trade value:
+  # never give or receive them on that basis.
+  bye_ffa <- current_players$ffa_id[current_players$nfl_team %in% espn_snap$bye_teams]
 
   # bidirectional team -> opponent map (spec 41) - same as recommend_lineups()
   mu  <- espn_snap$matchups |> distinct(home_team_id, away_team_id)
@@ -141,7 +144,7 @@ recommend_trades <- function(current_players, espn_snap, draws_by_ffa,
   # max_receive_per_pos evaluate_roster() calls per advised team. Widen max_give /
   # max_receive_per_pos if the surplus heuristic misses a good trade.
   give_pool <- my_base |>
-    filter(has_draws(ffa_id), !ffa_id %in% locked_all) |>
+    filter(has_draws(ffa_id), !ffa_id %in% locked_all, !ffa_id %in% bye_ffa) |>
     arrange(sim_mean) |>
     head(max_give)
   if (nrow(give_pool) == 0L) return(.empty_trade_recs())
@@ -164,7 +167,7 @@ recommend_trades <- function(current_players, espn_snap, draws_by_ffa,
     p_before   <- evaluate_roster(p_base, slots, draws_by_ffa, p_opp_ffa, pinned_ffa = p_pin)
     n_before_them <- nrow(p_before$optimal_lineup[[1]])
 
-    recv_all <- p_base |> filter(has_draws(ffa_id), !ffa_id %in% locked_all)
+    recv_all <- p_base |> filter(has_draws(ffa_id), !ffa_id %in% locked_all, !ffa_id %in% bye_ffa)
     if (nrow(recv_all) == 0L) next
 
     for (gi in seq_len(nrow(give_pool))) {
