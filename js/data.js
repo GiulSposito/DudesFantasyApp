@@ -198,6 +198,14 @@ export async function getLeagueRanks() {
             ORDER BY week, team_id`, "league_ranks");
 }
 
+// Best possible starting lineups (rostered / free agents) from real points,
+// only for weeks with a "final" snapshot; empty while the week is open.
+export async function getBestLineups() {
+  const { season, week } = state.get();
+  return q(`SELECT * FROM best_lineups WHERE season = ${Number(season)} AND week = ${Number(week)}
+            ORDER BY kind, slot_order`, "best_lineups");
+}
+
 // Win-probability path of one matchup across the week's snapshots.
 export async function getMatchupHistory(week, matchupId) {
   return q(`SELECT * FROM matchup_history WHERE week = ${Number(week)} AND matchup_id = '${matchupId}'

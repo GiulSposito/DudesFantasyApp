@@ -1,6 +1,6 @@
 {
   "schema_version": "1.0.0",
-  "generated_at": "2026-10-07T11:04:48Z",
+  "generated_at": "2026-10-07T11:12:21Z",
   "current": {
     "run_id": "2026-W05-posWaivers-20261007T080146",
     "season": 2026,
@@ -32,7 +32,8 @@
     "player_points": "history/player_points.parquet",
     "consensus_history": "history/consensus_history.parquet",
     "matchup_history": "history/matchup_history.parquet",
-    "league_ranks": "history/league_ranks.parquet"
+    "league_ranks": "history/league_ranks.parquet",
+    "best_lineups": "history/best_lineups.parquet"
   },
-  "privacy": "public"
+  "privacy": "private"
 }
