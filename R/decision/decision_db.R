@@ -127,11 +127,14 @@ build_decision_db <- function(simulation_run, player_forecasts,
   list(a = a, b = b)
 }
 
-# upsert a dm into an on-disk .rds (mirrors R/pipeline/data_pipeline_espn.R:23).
+# upsert a dm into an on-disk .rds (mirrors updateDB() in R/pipeline/).
 # If the on-disk dm has a different set of tables (schema evolved across
 # milestones), overwrite instead of upsert - the older runs carried fewer tables
 # and regenerate in seconds.
-updateDB <- function(db, db_file) {
+# Deliberately NOT named updateDB: data_pipeline.R sources this after the ESPN /
+# FFA pipelines, and a global updateDB here would shadow theirs - a new espn_*
+# table then wiped espn_db's whole history.
+.update_decision_db <- function(db, db_file) {
   if (file.exists(db_file)) {
     old <- readRDS(db_file)
     if (setequal(names(old), names(db))) {
@@ -150,5 +153,5 @@ updateDB <- function(db, db_file) {
 
 # ponytail: unbounded run history, add keep_last_n_runs prune if the rds grows.
 persist_decision_db <- function(db, file = "./data/decision_db.rds") {
-  updateDB(db, file)
+  .update_decision_db(db, file)
 }
