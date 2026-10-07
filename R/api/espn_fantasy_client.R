@@ -722,6 +722,43 @@ espn_player_pool <- function(
   .espn_parse_player_pool(raw)
 }
 
+# ESPN "OPRK": average fantasy points each NFL defense allows per position,
+# season to date, league-wide. Comes as the top-level `positionAgainstOpponent`
+# of any kona_player_info response, so one player (limit = 1) is enough.
+# rank 1 = fewest points allowed (toughest matchup), 32 = most (easiest).
+espn_position_vs_opponent <- function(client = espn_client(), week = NULL) {
+  if (is.null(week)) week <- espn_current_week(client)
+
+  raw <- espn_raw(
+    client,
+    views = "kona_player_info",
+    week = week,
+    fantasy_filter = .espn_player_filter(limit = 1L)
+  )
+
+  .espn_parse_position_vs_opponent(raw)
+}
+
+.espn_parse_position_vs_opponent <- function(raw) {
+  ratings <- raw$positionAgainstOpponent$positionalRatings %||% list()
+
+  out <- purrr::imap_dfr(ratings, function(pos, pos_id) {
+    purrr::imap_dfr(pos$ratingsByOpponent %||% list(), function(r, team_id) {
+      tibble::tibble(
+        default_position_id = as.integer(pos_id),
+        pro_team_id = as.integer(team_id),
+        average = .espn_num(r$average),
+        rank = .espn_int(r$rank)
+      )
+    })
+  })
+  if (nrow(out) == 0L) return(out)
+
+  out |>
+    dplyr::inner_join(espn_default_position_map(), by = "default_position_id") |>
+    dplyr::left_join(espn_pro_team_map(), by = "pro_team_id")
+}
+
 espn_available_players <- function(
     client = espn_client(),
     week = NULL,

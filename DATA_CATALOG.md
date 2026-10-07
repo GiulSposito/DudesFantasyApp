@@ -139,7 +139,7 @@ Existe um modelo expandido alternativo de 8 tabelas em `R/api/nfl_league.R::nfl_
 
 ### `espn_db` --- liga no ESPN Fantasy (só em `data/`, só 2026)
 
-`R/pipeline/data_pipeline_espn.R`. Um único `dm` de 14 tabelas montado de um snapshot combinado (`espn_snapshot()`) + o pool de jogadores + times NFL e calendário de jogos (`espn_pro_schedule()`, view season-level `proTeamSchedules_wl`).
+`R/pipeline/data_pipeline_espn.R`. Um único `dm` de 15 tabelas montado de um snapshot combinado (`espn_snapshot()`) + o pool de jogadores + times NFL e calendário de jogos (`espn_pro_schedule()`, view season-level `proTeamSchedules_wl`) + pontos cedidos por posição por defesa NFL (`espn_position_vs_opponent()`).
 
 | tabela | linhas | PK | o que é |
 |------------------|------------------|------------------|------------------|
@@ -157,8 +157,9 @@ Existe um modelo expandido alternativo de 8 tabelas em `R/api/nfl_league.R::nfl_
 | `espn_draft` | 210 | `season, overall_pick` | draft board: `round, round_pick, team_id, player_id, bid_amount, keeper, trade_locked` |
 | `espn_pro_teams` | 33 | `season, pro_team_id` | times NFL (inclui `FA`, id 0): `pro_team` (sigla), `location`, `name`, `conference` (AFC/NFC), **`bye_week`**, `dst_player_id` (id ESPN do D/ST) --- fonte do bye no motor de decisão |
 | `espn_pro_games` | 272 | `season, game_id` | calendário NFL da temporada inteira, 1 linha por jogo: `week`, `game_date` (UTC), home/away `pro_team_id` + sigla, `start_time_tbd`, `stats_official`, `valid_for_locking` |
+| `espn_pos_vs_opponent` | 192/snapshot | `season, week, tag, timestamp, position, pro_team_id` | "OPRK" da ESPN: média de pontos fantasy que cada defesa NFL (`pro_team_id`/`pro_team`) cedeu à `position` (QB/RB/WR/TE/K/D/ST) na temporada até o scrape (`average`) e o `rank` 1--32 dentro da posição --- **1 = cede menos (confronto mais difícil), 32 = cede mais**. Vem do campo top-level `positionAgainstOpponent` da view `kona_player_info`. O adversário da semana sai de `espn_pro_games` (time sem jogo na semana = bye) |
 
-**FKs:** `espn_team_standings` / `espn_rosters` / `espn_matchups` (home + away) / `espn_draft` `(season, team_id) → espn_teams`; `espn_rosters` / `espn_player_injury_status` / `espn_players_points` / `espn_draft` `(season, player_id) → espn_players`. `espn_pro_games` (home + away) `(season, pro_team_id) → espn_pro_teams`; `espn_players.pro_team_id` junta com `espn_pro_teams` sem FK declarada.
+**FKs:** `espn_team_standings` / `espn_rosters` / `espn_matchups` (home + away) / `espn_draft` `(season, team_id) → espn_teams`; `espn_rosters` / `espn_player_injury_status` / `espn_players_points` / `espn_draft` `(season, player_id) → espn_players`. `espn_pro_games` (home + away) `(season, pro_team_id) → espn_pro_teams`; `espn_players.pro_team_id` e `espn_pos_vs_opponent.pro_team_id` juntam com `espn_pro_teams` sem FK declarada.
 
 ### `analytical_db` --- base analítica projeção x realizado
 

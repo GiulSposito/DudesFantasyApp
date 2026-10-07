@@ -96,11 +96,13 @@ getEspnSnapshot <- function(client, .season, .week, .tag, .timestamp) {
 }
 
 # player master (kona_player_info, all statuses) + expanded per-record stats
-# (one row per scoring period / stat_source_id / stat_split_type_id)
+# (one row per scoring period / stat_source_id / stat_split_type_id) + ESPN
+# points-allowed-by-position per NFL defense (OPRK)
 getEspnPlayerPool <- function(client, .season, .week, .tag, .timestamp) {
   pool <- list(
-    players = espn_all_players(client, week = .week, limit = 5000L),
-    stats   = espn_player_stats(client, week = .week, limit = 5000L)
+    players    = espn_all_players(client, week = .week, limit = 5000L),
+    stats      = espn_player_stats(client, week = .week, limit = 5000L),
+    pos_vs_opp = espn_position_vs_opponent(client, week = .week)
   )
   saveEspnTemp(pool, "espn_player_pool", .season, .week, .tag, .timestamp)
   return(pool)
@@ -245,6 +247,15 @@ buildEspnDB <- function(snap, pool, .season, .week, .tag, .timestamp) {
            away_team_id, away_team_name, away_points, away_projected_points,
            winner, playoff_tier_type)
 
+  # ESPN OPRK: avg fantasy points each NFL defense allowed per position, season
+  # to date. rank 1 = fewest allowed (toughest matchup), 32 = easiest. Opponent
+  # of the week comes from espn_pro_games. No FK to espn_pro_teams (a new
+  # table's FK onto an older one does not survive updateDB()'s seeding).
+  espn_pos_vs_opponent <- .espn_require_rows(pool$pos_vs_opp, "pos_vs_opp") |>
+    mutate(season = .season, week = .week, tag = .tag, timestamp = .timestamp) |>
+    select(season, week, tag, timestamp, position, pro_team_id, pro_team,
+           average, rank)
+
   espn_draft <- .espn_require_rows(snap$draft, "draft") |>
     mutate(season = .season) |>
     distinct(season, overall_pick, .keep_all = TRUE) |>
@@ -265,7 +276,7 @@ buildEspnDB <- function(snap, pool, .season, .week, .tag, .timestamp) {
     espn_league, espn_members, espn_teams, espn_roster_slots, espn_scoring_rules,
     espn_players, espn_team_standings, espn_player_injury_status,
     espn_players_points, espn_rosters, espn_matchups, espn_draft,
-    espn_pro_teams, espn_pro_games
+    espn_pro_teams, espn_pro_games, espn_pos_vs_opponent
   ) |>
     dm_add_pk(espn_league,               c(league_id, season), check = TRUE) |>
     dm_add_pk(espn_members,              member_id, check = TRUE) |>
@@ -282,6 +293,8 @@ buildEspnDB <- function(snap, pool, .season, .week, .tag, .timestamp) {
     dm_add_pk(espn_draft,                c(season, overall_pick), check = TRUE) |>
     dm_add_pk(espn_pro_teams,            c(season, pro_team_id), check = TRUE) |>
     dm_add_pk(espn_pro_games,            c(season, game_id), check = TRUE) |>
+    dm_add_pk(espn_pos_vs_opponent,      c(season, week, tag, timestamp, position,
+                                          pro_team_id), check = TRUE) |>
     dm_add_fk(espn_team_standings,       c(season, team_id),      espn_teams) |>
     dm_add_fk(espn_rosters,              c(season, team_id),      espn_teams) |>
     dm_add_fk(espn_rosters,              c(season, player_id),    espn_players) |>
