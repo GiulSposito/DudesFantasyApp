@@ -189,6 +189,21 @@ export async function getPlayerTeams() {
   return new Map(rows.map((r) => [String(r.player_id), r.nfl_team]));
 }
 
+// Every rostered player of every team, all columns (trade simulator).
+export async function getLeagueRosters() {
+  return q(`SELECT * FROM rosters WHERE ${runFilter()}`, "rosters");
+}
+
+export async function getRosterSlots() {
+  return q("SELECT * FROM roster_slots ORDER BY lineup_slot_id", "roster_slots");
+}
+
+// runs.parquet row of the selected snapshot
+export async function getRun() {
+  const rows = await q(`SELECT * FROM runs WHERE ${runFilter()} LIMIT 1`, "runs");
+  return rows[0] || null;
+}
+
 // Every rostered player (all teams), for owner filters.
 export async function getAllRosters() {
   return q(`SELECT team_id, team_name, player_id, ffa_id FROM rosters WHERE ${runFilter()}`, "rosters");

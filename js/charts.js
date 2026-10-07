@@ -219,6 +219,84 @@ export async function bumpChart(el, rows, { teamOf, selectedTeamId = null } = {}
   draw(el, traces, layout);
 }
 
+// ---- trade simulator --------------------------------------------------
+
+// two-team identity pair, validated (dataviz validate_palette, dark surface
+// #0b1230: lightness band, CVD and contrast all pass). Before/after is carried by
+// hollow vs filled markers + a connecting line, not by color.
+export const SIM_ME = "#1aa3b0";
+export const SIM_THEM = "#d4702c";
+const SIM_POS_ORDER = ["QB", "RB", "WR", "TE", "K", "D/ST"];
+
+// Position strength of every league team (gray), with my team and the trade
+// partner drawn before (hollow) -> after (filled). rows: evaluateTrade()
+// lenses[lens].strength. labels: {me, them}.
+export function strengthStrip(el, rows, { me, them, unit = "pts/sem" } = {}) {
+  const order = SIM_POS_ORDER.filter((p) => rows.some((r) => r.position === p));
+  const byPos = new Map(rows.map((r) => [r.position, r]));
+  const y = (pos, off) => order.length - 1 - order.indexOf(pos) + off;
+  const traces = [{
+    type: "scatter", mode: "markers", name: "outros times", showlegend: true,
+    x: order.flatMap((p) => byPos.get(p).league.map((t) => t.value)),
+    y: order.flatMap((p) => byPos.get(p).league.map(() => y(p, 0))),
+    marker: { size: 8, color: "rgba(146,152,174,0.35)", line: { width: 0 } },
+    hovertemplate: `%{x:.1f} ${unit}<extra>outro time</extra>`,
+  }];
+  const side = (key, name, color, off) => {
+    const pts = order.map((p) => ({ pos: p, ...byPos.get(p)[key] }));
+    traces.push({
+      type: "scatter", mode: "lines", showlegend: false, hoverinfo: "skip",
+      x: pts.flatMap((s) => [s.before, s.after, null]), y: pts.flatMap((s) => [y(s.pos, off), y(s.pos, off), null]),
+      line: { color, width: 2 },
+    }, {
+      type: "scatter", mode: "markers", name: `${name} antes`, showlegend: false,
+      x: pts.map((s) => s.before), y: pts.map((s) => y(s.pos, off)),
+      marker: { size: 11, color: "rgba(0,0,0,0)", line: { color, width: 2 } },
+      hovertemplate: pts.map((s) => `${name} · ${s.pos} antes: %{x:.1f} ${unit} (${s.rankBefore}º)<extra></extra>`),
+    }, {
+      type: "scatter", mode: "markers+text", name,
+      x: pts.map((s) => s.after), y: pts.map((s) => y(s.pos, off)),
+      text: pts.map((s) => (s.rankAfter !== s.rankBefore ? `${s.rankBefore}º→${s.rankAfter}º` : "")),
+      textposition: off > 0 ? "top center" : "bottom center", textfont: { color: MUTED, size: 10 },
+      marker: { size: 11, color, line: { color: "#0b1230", width: 2 } },
+      hovertemplate: pts.map((s) => `${name} · ${s.pos} depois: %{x:.1f} ${unit} (${s.rankAfter}º de ${byPos.get(s.pos).league.length})<extra></extra>`),
+    });
+  };
+  side("me", me, SIM_ME, 0.18);
+  side("them", them, SIM_THEM, -0.18);
+  draw(el, traces, baseLayout({
+    height: 70 + order.length * 52, margin: { l: 52, r: 16, t: 8, b: 40 },
+    xaxis: { title: { text: unit, font: { color: MUTED } }, gridcolor: GRID, zeroline: false, tickfont: { color: MUTED } },
+    yaxis: { tickvals: order.map((p) => y(p, 0)), ticktext: order, gridcolor: GRID, zeroline: false,
+      tickfont: { color: INK }, range: [-0.6, order.length - 0.4] },
+    legend: { orientation: "h", y: -0.18, font: { color: MUTED } },
+  }));
+}
+
+// My team's weekly total as a normal curve before vs after the trade, with the
+// opponent's expected score as a reference line.
+export function normalOverlay(el, { before, after, opp }) {
+  const lo = Math.min(before.mu - 3 * before.sd, after.mu - 3 * after.sd);
+  const hi = Math.max(before.mu + 3 * before.sd, after.mu + 3 * after.sd);
+  const xs = Array.from({ length: 121 }, (_, i) => lo + ((hi - lo) * i) / 120);
+  const pdf = (x, { mu, sd }) => Math.exp(-0.5 * ((x - mu) / sd) ** 2) / (sd * Math.sqrt(2 * Math.PI));
+  const curve = (s, name, color, fill) => ({
+    type: "scatter", mode: "lines", name, x: xs, y: xs.map((x) => pdf(x, s)),
+    line: { color, width: 2 }, fill: fill ? "tozeroy" : "none", fillcolor: fill,
+    hovertemplate: `${name}: média ${fmtN(s.mu)} · desvio ${fmtN(s.sd)}<extra></extra>`,
+  });
+  const shapes = opp ? [{ type: "line", x0: opp.mu, x1: opp.mu, yref: "paper", y0: 0, y1: 1, line: { color: MUTED, width: 1.5 } }] : [];
+  const annotations = opp ? [{ x: opp.mu, yref: "paper", y: 1, text: "adversário", showarrow: false,
+    font: { color: MUTED, size: 10 }, yanchor: "bottom" }] : [];
+  draw(el, [curve(before, "antes", MUTED, null), curve(after, "depois", SIM_ME, SIM_ME + "33")], baseLayout({
+    height: 200, margin: { l: 8, r: 8, t: 18, b: 36 }, shapes, annotations,
+    xaxis: { title: { text: "pontos do seu time na semana", font: { color: MUTED } }, gridcolor: GRID, zeroline: false, tickfont: { color: MUTED } },
+    yaxis: { visible: false, rangemode: "tozero" },
+    legend: { orientation: "h", y: 1.12, x: 1, xanchor: "right", font: { color: MUTED } },
+  }));
+}
+const fmtN = (x) => Number(x).toLocaleString("pt-BR", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+
 // Quantile-based density: each band between distinct quantiles holds Δp of the
 // mass over Δq points; the curve is drawn at the quantiles themselves, each
 // taking the harmonic mean of its two neighbouring bands (smooths the narrow
