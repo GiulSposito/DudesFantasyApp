@@ -76,7 +76,7 @@ export function deltaSpan(x, kind = "pts") {
   const eps = kind === "pp" ? 0.0005 : 0.05;
   const cls = x >= eps ? "delta--pos" : x <= -eps ? "delta--neg" : "delta--zero";
   const txt = kind === "pp" ? fmt.deltaPp(x)
-    : kind === "raw" ? (x >= 0 ? "+" : "−") + Math.abs(x).toFixed(1)
+    : kind === "raw" ? (x >= 0 ? "+" : "−") + fmt.points(Math.abs(x))
     : fmt.deltaPts(x);
   return el("span", { class: `delta ${cls}` }, txt);
 }
