@@ -75,32 +75,46 @@ build_web_bundle <- function(run_id = NULL, result = NULL,
   paths <- list()
   put <- function(name, df, rel) paths[[name]] <<- write_mart(df, rel)
 
-  put("runs",         build_runs(src, run),               "runs.parquet")
+  # one run per season + week - the newest, up to the resolved run - so the
+  # site's snapshot selector can switch weeks. Per-run marts stack these.
+  # ponytail: bundle grows ~250 KB per week; per-run files if it ever matters
+  week_runs <- src$decision_db$simulation_runs |>
+    filter(created_at <= run$created_at) |>
+    group_by(season, week) |>
+    slice_max(created_at, n = 1, with_ties = FALSE) |>
+    ungroup()
+  week_runs <- lapply(seq_len(nrow(week_runs)), \(i) as.list(week_runs[i, ]))
+  per_run <- function(f) bind_rows(lapply(week_runs, \(r) f(src, r)))
+
+  put("runs",         build_runs(src, run) |>
+                        filter(run_id %in% map_chr(week_runs, "run_id")),
+                      "runs.parquet")
 
   put("teams",        apply_privacy(build_dim_teams(src, run), "teams", privacy),
                       "dimensions/teams.parquet")
   put("players",      build_dim_players(src, run),         "dimensions/players.parquet")
   put("roster_slots", build_dim_roster_slots(src, run),    "dimensions/roster_slots.parquet")
 
-  put("standings",              build_standings(src, run),              "current/standings.parquet")
-  put("rosters",                build_rosters(src, run),                "current/rosters.parquet")
-  put("forecasts",              build_forecasts(src, run),              "current/forecasts.parquet")
-  put("matchups",               build_matchups(src, run),               "current/matchups.parquet")
-  put("lineup_evaluations",     build_lineup_evaluations(src, run),     "current/lineup_evaluations.parquet")
-  put("lineup_recommendations", build_lineup_recommendations(src, run), "current/lineup_recommendations.parquet")
-  put("free_agents",            build_free_agents(src, run),            "current/free_agents.parquet")
-  put("waiver_recommendations", build_waiver_recommendations(src, run), "current/waiver_recommendations.parquet")
+  put("standings",              per_run(build_standings),              "current/standings.parquet")
+  put("rosters",                per_run(build_rosters),                "current/rosters.parquet")
+  put("forecasts",              per_run(build_forecasts),              "current/forecasts.parquet")
+  put("matchups",               per_run(build_matchups),               "current/matchups.parquet")
+  put("lineup_evaluations",     per_run(build_lineup_evaluations),     "current/lineup_evaluations.parquet")
+  put("lineup_recommendations", per_run(build_lineup_recommendations), "current/lineup_recommendations.parquet")
+  put("free_agents",            per_run(build_free_agents),            "current/free_agents.parquet")
+  put("waiver_recommendations", per_run(build_waiver_recommendations), "current/waiver_recommendations.parquet")
   put("trade_recommendations",
-      apply_privacy(build_trade_recommendations(src, run), "trade_recommendations", privacy),
+      apply_privacy(per_run(build_trade_recommendations), "trade_recommendations", privacy),
       "current/trade_recommendations.parquet")
-  put("data_health",            build_data_health(src, run),            "current/data_health.parquet")
+  put("data_health",            per_run(build_data_health),            "current/data_health.parquet")
 
-  put("source_projections", build_source_projections(src, run), "projections/source_projections.parquet")
+  put("source_projections", per_run(build_source_projections), "projections/source_projections.parquet")
   put("source_accuracy",    build_source_accuracy(src, run),    "projections/source_accuracy.parquet")
 
   put("player_points",      build_player_points(src, run),      "history/player_points.parquet")
   put("consensus_history",  build_consensus_history(src, run),  "history/consensus_history.parquet")
   put("matchup_history",    build_matchup_history(src, run),    "history/matchup_history.parquet")
+  put("league_ranks",       build_league_ranks(src, run),       "history/league_ranks.parquet")
 
   write_manifest(run, paths, privacy, output_dir)
 

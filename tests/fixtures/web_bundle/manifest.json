@@ -1,16 +1,16 @@
 {
   "schema_version": "1.0.0",
-  "generated_at": "2026-09-09T14:17:49Z",
+  "generated_at": "2026-10-07T01:29:58Z",
   "current": {
-    "run_id": "2026-W01-preview-20260909T095708",
+    "run_id": "2026-W05-preWaivers-20261006T214202",
     "season": 2026,
-    "week": 1,
-    "tag": "preview",
+    "week": 5,
+    "tag": "preWaivers",
     "model_version": "player-mc-v2",
-    "n_sim": 2000,
-    "created_at": "2026-09-09T12:57:32Z",
-    "ffa_timestamp": "2026-09-07T13:18:16Z",
-    "espn_timestamp": "2026-09-07T13:10:25Z"
+    "n_sim": 10000,
+    "created_at": "2026-10-07T00:45:05Z",
+    "ffa_timestamp": "2026-10-07T00:24:41Z",
+    "espn_timestamp": "2026-10-07T00:23:09Z"
   },
   "datasets": {
     "runs": "runs.parquet",
@@ -30,7 +30,9 @@
     "source_projections": "projections/source_projections.parquet",
     "source_accuracy": "projections/source_accuracy.parquet",
     "player_points": "history/player_points.parquet",
-    "consensus_history": "history/consensus_history.parquet"
+    "consensus_history": "history/consensus_history.parquet",
+    "matchup_history": "history/matchup_history.parquet",
+    "league_ranks": "history/league_ranks.parquet"
   },
   "privacy": "public"
 }

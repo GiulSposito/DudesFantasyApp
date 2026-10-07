@@ -438,8 +438,14 @@ The frontend MUST use the manifest rather than hard-code dataset paths or curren
 ## Grain
 
 ```text
-1 row = 1 decision engine run
+1 row = 1 season + week: that week's newest decision engine run, up to the
+current run. It drives the site's week selector (labelled "season · Semana week";
+the run's tag is shown in the header only).
 ```
+
+`current/*` and `projections/source_projections` stack one block of rows per run
+listed here (multi-run by design, section 32.3); the frontend filters every query
+on the selected `run_id`.
 
 ## Source
 
@@ -1570,6 +1576,41 @@ Confronto page: filter by `week` + `matchup_id`, order by `created_at`.
 
 ---
 
+# 26.2 history/league_ranks.parquet
+
+## Grain
+
+```text
+1 row = 1 fantasy team x 1 completed regular-season week
+```
+
+## Source
+
+`espn_db$espn_matchups` (latest snapshot at or before the run's ESPN
+timestamp; it carries the whole-season schedule with results). Built by
+`R/web/bundle/ranks.R::build_league_ranks()`. Feeds the Liga -> Rank page, which
+reads the weeks up to the one selected in the header.
+
+## Logical PK
+
+```text
+season + week + team_id
+```
+
+## Columns
+
+| column        | meaning |
+| ------------- | ------- |
+| points        | team score in that week |
+| result        | W / L / T |
+| cum_points, wins, losses, ties | cumulative through the week |
+| standing_rank | league table: win % (tie = half), then cum_points |
+| points_rank   | rank of cum_points |
+| survival_rank | rank of the week score among teams still alive; NA once eliminated |
+| eliminated    | TRUE on the week the team had the lowest score among the alive (tie: lower cum_points, then lower team_id goes out) |
+
+---
+
 # 27. draft/draft.parquet
 
 ## Grain
@@ -1844,13 +1885,10 @@ matchups.away_team_id
 
 ## 32.3 Run consistency
 
-Every `current/*` dataset containing `run_id` MUST contain exactly:
-
-```text
-manifest$current$run_id
-```
-
-unless the specific dataset is intentionally multi-run.
+Every `run_id` in a `current/*` or `projections/*` dataset MUST be listed in
+`runs.parquet`, and `runs.parquet` MUST flag exactly `manifest$current$run_id` as
+`is_current`. These marts are intentionally multi-run: one run per season + week
+(section 10).
 
 ---
 

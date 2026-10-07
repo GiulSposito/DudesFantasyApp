@@ -28,6 +28,7 @@ website:
         menu:
           - { text: "Placar da rodada", href: scoreboard.qmd }
           - { text: "Classificação e força", href: league.qmd }
+          - { text: "Rank", href: rank.qmd }
       - text: "Dados"
         menu:
           - { text: "Jogadores",          href: players.qmd }

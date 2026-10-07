@@ -12,8 +12,8 @@ export async function render(root) {
   const { teamId } = state.get();
   const [standings, evals, optRows] = await Promise.all([
     data.getStandings(),
-    data.q("SELECT team_id, optimal_expected FROM lineup_evaluations", "lineup_evaluations"),
-    data.q("SELECT team_id, position, sim_mean FROM rosters WHERE is_optimal_starter = true", "rosters"),
+    data.q(`SELECT team_id, optimal_expected FROM lineup_evaluations WHERE ${data.runFilter()}`, "lineup_evaluations"),
+    data.q(`SELECT team_id, position, sim_mean FROM rosters WHERE ${data.runFilter()} AND is_optimal_starter = true`, "rosters"),
   ]);
 
   const strength = new Map(evals.map((e) => [String(e.team_id), e.optimal_expected]));

@@ -2,7 +2,7 @@
 import * as data from "../data.js";
 import * as state from "../state.js";
 import * as fmt from "../format.js";
-import { el, banner, mount } from "../app.js";
+import { el, banner, mount, team } from "../app.js";
 import { sectionLabel, posBadge, coverageDot, deltaSpan, rankTable, drawer, kv, avatar, rangeBar, moveSide, gainBar } from "../components.js";
 
 let faPos = "ALL";
@@ -56,7 +56,9 @@ export async function render(root) {
   mount(root,
     sectionLabel("Movimentos sugeridos"),
     recs.length ? el("div", { class: "move-grid" }, ...recs.map((r) => recCard(r, fc, maxPts, maxPp)))
-      : banner("empty", "Nenhum movimento de waiver que melhore o time nesta semana."),
+      : banner("empty", team(teamId).is_my_team
+        ? "Nenhum movimento de waiver que melhore o time nesta semana."
+        : "Recomendações de waiver só são calculadas para o seu time."),
     recs.length ? el("div", { class: "note-inline" },
       "Ordenado pelo ganho de pontos esperados na escalação ótima desta semana. Clique num card para comparar os dois jogadores.") : null,
 
