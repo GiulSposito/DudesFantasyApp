@@ -145,3 +145,76 @@ export function winProbLine(el, rows, { label = "" } = {}) {
     showlegend: false,
   }));
 }
+
+// url -> Promise<boolean>: whether the browser can load it (custom ESPN logo
+// uploads answer 401 without a session). Cached for the page's lifetime.
+const _logoOk = new Map();
+function canLoad(url) {
+  if (!url) return Promise.resolve(false);
+  if (!_logoOk.has(url)) {
+    _logoOk.set(url, new Promise((res) => {
+      const img = new Image();
+      img.onload = () => res(true);
+      img.onerror = () => res(false);
+      img.src = url;
+    }));
+  }
+  return _logoOk.get(url);
+}
+
+// 14 categorical colours readable on the dark background, one per fantasy team.
+const TEAM_COLORS = ["#00fff9", "#f45b92", "#28e757", "#ffae58", "#a477e8", "#3db5e6", "#ff5b6e",
+  "#f0d35a", "#39c6b5", "#e07be0", "#8fd14f", "#5b8cff", "#ff8a3d", "#c8c8c8"];
+
+// Bump chart (ggbump + ggimage look): one smooth line per team across weeks, the
+// team logo on every point and a short label under it. rank 1 = top.
+//   rows: [{ week, team_id, rank, label, hover, alert? }]  alert = red ring
+//   teamOf(id) -> { team_name, abbrev, logo_url }; colours follow team_id order so
+//   a team keeps its colour across the page's charts. selectedTeamId is drawn on
+//   top, the others dimmed. A logo that fails to load falls back to the abbrev.
+export async function bumpChart(el, rows, { teamOf, selectedTeamId = null } = {}) {
+  const sel = selectedTeamId == null ? null : String(selectedTeamId);
+  const ids = [...new Set(rows.map((r) => String(r.team_id)))].sort((a, b) => Number(a) - Number(b));
+  const color = new Map(ids.map((id, i) => [id, TEAM_COLORS[i % TEAM_COLORS.length]]));
+  const dim = (id) => sel != null && id !== sel;
+  const order = [...ids.filter((id) => id !== sel), ...ids.filter((id) => id === sel)];
+
+  const traces = order.map((id) => {
+    const pts = rows.filter((r) => String(r.team_id) === id).sort((a, b) => a.week - b.week);
+    return {
+      type: "scatter", mode: "lines+markers+text", name: teamOf(id).team_name,
+      x: pts.map((p) => p.week), y: pts.map((p) => p.rank),
+      text: pts.map((p) => p.label), textposition: "bottom center",
+      textfont: { color: dim(id) ? MUTED : INK, size: 10 },
+      line: { color: color.get(id), width: id === sel ? 6 : 4, shape: "spline", smoothing: 0.8 },
+      marker: { size: 34, color: "#1a2447",
+        line: { color: pts.map((p) => (p.alert ? BAD : color.get(id))), width: pts.map((p) => (p.alert ? 3 : 2)) } },
+      opacity: dim(id) ? 0.55 : 1,
+      hovertext: pts.map((p) => p.hover), hovertemplate: "%{hovertext}<extra></extra>",
+    };
+  });
+
+  const weeks = rows.map((r) => r.week);
+  const nRanks = Math.max(...rows.map((r) => r.rank));
+  const layout = baseLayout({
+    height: 140 + nRanks * 52,
+    margin: { l: 48, r: 16, t: 8, b: 40 },
+    xaxis: { tickprefix: "Semana ", dtick: 1, gridcolor: GRID, zeroline: false,
+      tickfont: { color: MUTED }, range: [Math.min(...weeks) - 0.4, Math.max(...weeks) + 0.4] },
+    yaxis: { title: { text: "posição", font: { color: MUTED } }, dtick: 1, gridcolor: GRID, zeroline: false,
+      tickfont: { color: MUTED }, range: [nRanks + 0.7, 0.4] },
+    showlegend: true,
+    legend: { orientation: "h", y: -0.04, yanchor: "top", font: { color: MUTED, size: 11 } },
+  });
+  const ok = new Map(await Promise.all(ids.map(async (id) => [id, await canLoad(teamOf(id).logo_url)])));
+  layout.annotations = rows.filter((r) => !ok.get(String(r.team_id))).map((r) => ({
+    xref: "x", yref: "y", x: r.week, y: r.rank, showarrow: false,
+    text: (teamOf(String(r.team_id)).abbrev || "?").slice(0, 4), font: { color: INK, size: 10 },
+  }));
+  layout.images = rows.filter((r) => ok.get(String(r.team_id))).map((r) => ({
+    source: teamOf(String(r.team_id)).logo_url, xref: "x", yref: "y", x: r.week, y: r.rank,
+    sizex: 0.5, sizey: 0.62, xanchor: "center", yanchor: "middle", layer: "above",
+    opacity: dim(String(r.team_id)) ? 0.8 : 1,
+  }));
+  draw(el, traces, layout);
+}

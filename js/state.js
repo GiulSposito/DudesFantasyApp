@@ -25,14 +25,22 @@ function writeUrl() {
   history.replaceState(null, "", u);
 }
 
-export function init(manifest, defaultTeamId = null) {
+// runs: rows of runs.parquet (one per season + week). A stored run is only
+// reused while the published bundle is the same one it was picked under, so a
+// newly published week opens on that week instead of the last one browsed.
+export function init(manifest, defaultTeamId = null, runs = []) {
   const qp = Object.fromEntries(new URL(window.location.href).searchParams);
   const stored = readStored();
   const c = manifest.current;
+  const sameBundle = stored.bundle === c.run_id;
+  const run = [qp.run, sameBundle ? stored.runId : null, c.run_id]
+    .map((id) => runs.find((r) => r.run_id === id))
+    .find(Boolean) || { run_id: c.run_id, season: c.season, week: c.week };
   _state = {
-    season: Number(qp.season ?? stored.season ?? c.season),
-    week: Number(qp.week ?? stored.week ?? c.week),
-    runId: qp.run ?? stored.runId ?? c.run_id,
+    bundle: c.run_id,
+    season: Number(run.season),
+    week: Number(run.week),
+    runId: run.run_id,
     teamId: qp.team ?? stored.teamId ?? defaultTeamId,
     position: qp.position ?? stored.position ?? "ALL",
   };

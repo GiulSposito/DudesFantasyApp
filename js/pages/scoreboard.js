@@ -2,6 +2,7 @@
 // Rebuilds R_old/reports/MatchupPredictionsPanel.R (team avatar + score +
 // win-prob bar + game-progress bar) on the ESPN/decision-engine data model.
 import * as data from "../data.js";
+import * as state from "../state.js";
 import * as fmt from "../format.js";
 import { el, banner, mount, team } from "../app.js";
 import { bar, teamLogo } from "../components.js";
@@ -24,19 +25,24 @@ function teamHalf(m, side) {
       total ? el("span", { title: "Titulares cujo jogo já começou ou terminou" }, `${locked}/${total} jogaram`) : null));
 }
 
-function matchupCard(m) {
-  return el("div", { class: "cockpit-card scoreboard-card" + (m.is_my_matchup ? " scoreboard-card--mine" : "") },
+// the selected team's matchup, not the config's is_my_matchup
+const isTeams = (m, teamId) =>
+  String(m.home_team_id) === String(teamId) || String(m.away_team_id) === String(teamId);
+
+function matchupCard(m, teamId) {
+  return el("div", { class: "cockpit-card scoreboard-card" + (isTeams(m, teamId) ? " scoreboard-card--mine" : "") },
     teamHalf(m, "home"),
     el("div", { class: "scoreboard-vs" }, "x"),
     teamHalf(m, "away"));
 }
 
 export async function render(root) {
+  const { teamId } = state.get();
   const matchups = await data.getMatchups();
   if (!matchups.length) { mount(root, banner("empty", "Nenhum confronto para esta captura.")); return; }
 
-  const sorted = [...matchups].sort((a, b) => b.is_my_matchup - a.is_my_matchup);
+  const sorted = [...matchups].sort((a, b) => isTeams(b, teamId) - isTeams(a, teamId));
   mount(root,
-    el("div", { class: "scoreboard-grid" }, ...sorted.map(matchupCard)),
+    el("div", { class: "scoreboard-grid" }, ...sorted.map((m) => matchupCard(m, teamId))),
     el("div", { class: "note-inline" }, "Placar = pontos esperados (inclui pontos reais de quem já jogou). Seu confronto aparece primeiro, com borda."));
 }

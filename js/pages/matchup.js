@@ -7,6 +7,7 @@ import { card, sectionLabel, avatar, teamLogo, winBar, rangeBar, lockBadge, stat
 import { winProbLine } from "../charts.js";
 
 let selectedId = null;
+let selectedFor = null;   // team|run the selection was made under
 
 // starters of one team grouped by slot, best first inside a slot
 function slotted(roster) {
@@ -67,7 +68,9 @@ function duel(home, away, m) {
 }
 
 export async function render(root) {
-  const { teamId } = state.get();
+  const { teamId, runId } = state.get();
+  // a new team or snapshot re-centres on that team's matchup
+  if (selectedFor !== `${teamId}|${runId}`) { selectedId = null; selectedFor = `${teamId}|${runId}`; }
   const matchups = await data.getMatchups();
   if (!matchups.length) { mount(root, banner("empty", "Nenhum confronto para esta captura.")); return; }
 

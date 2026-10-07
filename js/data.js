@@ -3,6 +3,7 @@
 // WHERE / ORDER BY / LIMIT / GROUP BY / simple aggregates / ILIKE.
 
 import * as duckdb from "@duckdb/duckdb-wasm";
+import * as state from "./state.js";
 
 let _manifest = null;
 let _dbPromise = null;
@@ -68,20 +69,15 @@ export async function q(sql, ...deps) {
 
 // ---- typed accessors -----------------------------------------------------
 
-export async function getRun() {
-  const m = await loadManifest();
-  return { ...m.current, privacy: m.privacy, generated_at: m.generated_at };
-}
+// The current/* and source_projections marts stack one run per season + week;
+// every accessor over them reads only the run selected in the header.
+export const runFilter = () => `run_id = '${String(state.get().runId).replace(/'/g, "")}'`;
 
-// One row per (season, week, tag) - the newest run when a re-run left more
-// than one snapshot for the same combination - newest first.
+// One row per season + week (the bundle keeps only that week's newest run),
+// newest first.
 export async function getRuns() {
-  return q(
-    `SELECT * FROM runs
-     QUALIFY row_number() OVER (PARTITION BY season, week, tag ORDER BY created_at DESC) = 1
-     ORDER BY created_at DESC`,
-    "runs",
-  );
+  // created_ms: epoch ms, so the UI never has to decode an arrow timestamp
+  return q("SELECT *, epoch_ms(created_at) AS created_ms FROM runs ORDER BY season DESC, week DESC", "runs");
 }
 
 export async function getTeams() {
@@ -89,11 +85,11 @@ export async function getTeams() {
 }
 
 export async function getStandings() {
-  return q("SELECT * FROM standings ORDER BY rank", "standings");
+  return q(`SELECT * FROM standings WHERE ${runFilter()} ORDER BY rank`, "standings");
 }
 
 export async function getForecasts({ position = "ALL", search = "" } = {}) {
-  let sql = "SELECT * FROM forecasts WHERE 1=1";
+  let sql = `SELECT * FROM forecasts WHERE ${runFilter()}`;
   if (position && position !== "ALL") sql += ` AND upper(position) = '${position}'`;
   if (search) sql += ` AND player_name ILIKE '%${search.replace(/'/g, "")}%'`;
   sql += " ORDER BY sim_mean DESC";
@@ -101,57 +97,57 @@ export async function getForecasts({ position = "ALL", search = "" } = {}) {
 }
 
 export async function getRoster(teamId) {
-  return q(`SELECT * FROM rosters WHERE team_id = '${teamId}' ORDER BY lineup_slot_id, sim_mean DESC`, "rosters");
+  return q(`SELECT * FROM rosters WHERE ${runFilter()} AND team_id = '${teamId}' ORDER BY lineup_slot_id, sim_mean DESC`, "rosters");
 }
 
 export async function getMatchups() {
-  return q("SELECT * FROM matchups ORDER BY matchup_id", "matchups");
+  return q(`SELECT * FROM matchups WHERE ${runFilter()} ORDER BY matchup_id`, "matchups");
 }
 
 export async function getMyMatchup() {
-  const rows = await q("SELECT * FROM matchups WHERE is_my_matchup = true LIMIT 1", "matchups");
+  const rows = await q(`SELECT * FROM matchups WHERE ${runFilter()} AND is_my_matchup = true LIMIT 1`, "matchups");
   return rows[0] || null;
 }
 
 export async function getMatchupForTeam(teamId) {
   const rows = await q(
-    `SELECT * FROM matchups WHERE home_team_id = '${teamId}' OR away_team_id = '${teamId}' LIMIT 1`,
+    `SELECT * FROM matchups WHERE ${runFilter()} AND (home_team_id = '${teamId}' OR away_team_id = '${teamId}') LIMIT 1`,
     "matchups",
   );
   return rows[0] || null;
 }
 
 export async function getLineupEvaluation(teamId) {
-  const rows = await q(`SELECT * FROM lineup_evaluations WHERE team_id = '${teamId}' LIMIT 1`, "lineup_evaluations");
+  const rows = await q(`SELECT * FROM lineup_evaluations WHERE ${runFilter()} AND team_id = '${teamId}' LIMIT 1`, "lineup_evaluations");
   return rows[0] || null;
 }
 
 export async function getLineupRecommendations(teamId) {
-  return q(`SELECT * FROM lineup_recommendations WHERE team_id = '${teamId}' ORDER BY recommendation_rank`, "lineup_recommendations");
+  return q(`SELECT * FROM lineup_recommendations WHERE ${runFilter()} AND team_id = '${teamId}' ORDER BY recommendation_rank`, "lineup_recommendations");
 }
 
 export async function getWaiverRecommendations(teamId) {
-  return q(`SELECT * FROM waiver_recommendations WHERE team_id = '${teamId}' ORDER BY recommendation_rank`, "waiver_recommendations");
+  return q(`SELECT * FROM waiver_recommendations WHERE ${runFilter()} AND team_id = '${teamId}' ORDER BY recommendation_rank`, "waiver_recommendations");
 }
 
 export async function getTradeRecommendations() {
-  return q("SELECT * FROM trade_recommendations ORDER BY recommendation_rank", "trade_recommendations");
+  return q(`SELECT * FROM trade_recommendations WHERE ${runFilter()} ORDER BY recommendation_rank`, "trade_recommendations");
 }
 
 export async function getFreeAgents({ position = "ALL" } = {}) {
-  let sql = "SELECT * FROM free_agents WHERE 1=1";
+  let sql = `SELECT * FROM free_agents WHERE ${runFilter()}`;
   if (position && position !== "ALL") sql += ` AND upper(position) = '${position}'`;
   sql += " ORDER BY sim_mean DESC";
   return q(sql, "free_agents");
 }
 
 export async function getForecast(ffaId) {
-  const rows = await q(`SELECT * FROM forecasts WHERE ffa_id = '${ffaId}' LIMIT 1`, "forecasts");
+  const rows = await q(`SELECT * FROM forecasts WHERE ${runFilter()} AND ffa_id = '${ffaId}' LIMIT 1`, "forecasts");
   return rows[0] || null;
 }
 
 export async function getSourceProjections(ffaId) {
-  return q(`SELECT * FROM source_projections WHERE ffa_id = '${ffaId}' ORDER BY data_src`, "source_projections");
+  return q(`SELECT * FROM source_projections WHERE ${runFilter()} AND ffa_id = '${ffaId}' ORDER BY data_src`, "source_projections");
 }
 
 export async function getSourceAccuracy() {
@@ -171,7 +167,7 @@ export async function getConsensusHistory({ season = null, limit = 4000 } = {}) 
 }
 
 export async function getDataHealth() {
-  const rows = await q("SELECT * FROM data_health LIMIT 1", "data_health");
+  const rows = await q(`SELECT * FROM data_health WHERE ${runFilter()} LIMIT 1`, "data_health");
   return rows[0] || null;
 }
 
@@ -179,7 +175,7 @@ export async function getDataHealth() {
 export async function getForecastsByIds(ffaIds) {
   const ids = [...new Set(ffaIds.filter((x) => x != null).map((x) => `'${x}'`))];
   if (!ids.length) return [];
-  return q(`SELECT * FROM forecasts WHERE ffa_id IN (${ids.join(",")})`, "forecasts");
+  return q(`SELECT * FROM forecasts WHERE ${runFilter()} AND ffa_id IN (${ids.join(",")})`, "forecasts");
 }
 
 // player_id -> nfl_team, for D/ST logos where a mart carries no team column.
@@ -190,9 +186,17 @@ export async function getPlayerTeams() {
 
 // Every rostered player (all teams), for owner filters.
 export async function getAllRosters() {
-  return q("SELECT team_id, team_name, player_id, ffa_id FROM rosters", "rosters");
+  return q(`SELECT team_id, team_name, player_id, ffa_id FROM rosters WHERE ${runFilter()}`, "rosters");
 }
 
+
+// Team ranks per completed week (standings / cumulative points / survival),
+// up to the week selected in the header.
+export async function getLeagueRanks() {
+  const { season, week } = state.get();
+  return q(`SELECT * FROM league_ranks WHERE season = ${Number(season)} AND week <= ${Number(week)}
+            ORDER BY week, team_id`, "league_ranks");
+}
 
 // Win-probability path of one matchup across the week's snapshots.
 export async function getMatchupHistory(week, matchupId) {

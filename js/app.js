@@ -36,7 +36,8 @@ export function mount(root, ...kids) {
 // ---- shell -------------------------------------------------------------
 
 let _teams = [];
-let _run = null;
+let _runs = [];
+let _run = null;   // runs.parquet row of the selected snapshot
 
 // fantasy team row (team_id, team_name, abbrev, logo_url, is_my_team) by id
 export function team(id) {
@@ -53,17 +54,20 @@ async function renderHeader() {
   const s = state.get();
   const teamSel = el("select", { "aria-label": "Time", onchange: (e) => state.set({ teamId: e.target.value }) },
     ..._teams.map((t) => el("option", { value: t.team_id, selected: String(t.team_id) === String(s.teamId) ? "" : null }, t.team_name)));
-  const runs = await data.getRuns().catch(() => []);
-  const runSel = el("select", { "aria-label": "Captura", onchange: (e) => state.set({ runId: e.target.value }) },
-    ...runs.map((r) => el("option", { value: r.run_id, selected: r.run_id === s.runId ? "" : null },
-      `${r.season} · Semana ${r.week} · ${r.tag}`)));
+  // one option per season + week; each maps to that week's newest snapshot
+  const runSel = el("select", { "aria-label": "Semana", onchange: (e) => {
+    const r = _runs.find((x) => x.run_id === e.target.value);
+    if (r) state.set({ runId: r.run_id, season: Number(r.season), week: Number(r.week) });
+  } },
+    ..._runs.map((r) => el("option", { value: r.run_id, selected: r.run_id === s.runId ? "" : null },
+      `${r.season} · Semana ${r.week}`)));
 
   bar.replaceChildren(
     teamLogo(team(s.teamId), { size: 26 }),
     el("div", { class: "ctx" },
       el("span", { class: "ctx__week" }, `Semana ${_run.week} · ${_run.season}`),
       el("span", { class: "ctx__tag", title: "Momento da semana em que os dados foram capturados" }, _run.tag),
-      el("span", {}, `atualizado ${fmt.since(_run.generated_at)}`)),
+      el("span", {}, `atualizado ${fmt.since(_run.created_ms)}`)),
     el("span", { class: "spring" }),
     teamSel, runSel,
   );
@@ -85,15 +89,21 @@ export async function boot(pageName) {
   try {
     _teams = await data.getTeams();
   } catch { _teams = []; }
+  _runs = await data.getRuns().catch(() => []);
   const mine = _teams.find((t) => t.is_my_team);
-  state.init(manifest, mine ? mine.team_id : (_teams[0]?.team_id ?? null));
-  _run = await data.getRun();
+  state.init(manifest, mine ? mine.team_id : (_teams[0]?.team_id ?? null), _runs);
+  const pickRun = () => {
+    const c = manifest.current;
+    _run = _runs.find((r) => r.run_id === state.get().runId) || { ...c, created_ms: manifest.generated_at };
+  };
+  pickRun();
   setPlayerTeams(await data.getPlayerTeams().catch(() => new Map()));
 
   await renderHeader();
 
   const mod = await import(`./pages/${pageName}.js`);
   const rerender = async () => {
+    pickRun();
     try {
       await mod.render(app);
     } catch (e) {
@@ -102,6 +112,8 @@ export async function boot(pageName) {
     }
     await renderHeader();
   };
-  state.subscribe(rerender);
+  // serialised: a slow render of an older selection never lands after a newer one
+  let chain = Promise.resolve();
+  state.subscribe(() => { chain = chain.then(rerender); });
   await rerender();
 }

@@ -7,58 +7,9 @@
     "text": "Carregando…"
   },
   {
-    "objectID": "lineup.html",
-    "href": "lineup.html",
-    "title": "Escalação",
-    "section": "",
-    "text": "Carregando…"
-  },
-  {
-    "objectID": "waivers.html",
-    "href": "waivers.html",
-    "title": "Waivers",
-    "section": "",
-    "text": "Carregando…"
-  },
-  {
-    "objectID": "matchup.html",
-    "href": "matchup.html",
-    "title": "Confronto",
-    "section": "",
-    "text": "Carregando…"
-  },
-  {
-    "objectID": "trades.html",
-    "href": "trades.html",
-    "title": "Trocas",
-    "section": "",
-    "text": "Carregando…"
-  },
-  {
-    "objectID": "players.html",
-    "href": "players.html",
-    "title": "Jogadores",
-    "section": "",
-    "text": "Carregando…"
-  },
-  {
-    "objectID": "projections.html",
-    "href": "projections.html",
-    "title": "Projeções e fontes",
-    "section": "",
-    "text": "Carregando…"
-  },
-  {
-    "objectID": "data-health.html",
-    "href": "data-health.html",
-    "title": "Saúde dos dados",
-    "section": "",
-    "text": "Carregando…"
-  },
-  {
-    "objectID": "index.html",
-    "href": "index.html",
-    "title": "Painel da semana",
+    "objectID": "scoreboard.html",
+    "href": "scoreboard.html",
+    "title": "Placar da rodada",
     "section": "",
     "text": "Carregando…"
   },
@@ -112,9 +63,65 @@
     "text": "ESPN cookies (config/config.yml, R/api/example_espn_342842788.R) or any data/*.rds. The bundle build only ever reads them; validate_web_bundle() and tests/web/test_privacy_public.R guard the output."
   },
   {
-    "objectID": "scoreboard.html",
-    "href": "scoreboard.html",
-    "title": "Placar da rodada",
+    "objectID": "index.html",
+    "href": "index.html",
+    "title": "Painel da semana",
+    "section": "",
+    "text": "Carregando…"
+  },
+  {
+    "objectID": "data-health.html",
+    "href": "data-health.html",
+    "title": "Saúde dos dados",
+    "section": "",
+    "text": "Carregando…"
+  },
+  {
+    "objectID": "projections.html",
+    "href": "projections.html",
+    "title": "Projeções e fontes",
+    "section": "",
+    "text": "Carregando…"
+  },
+  {
+    "objectID": "players.html",
+    "href": "players.html",
+    "title": "Jogadores",
+    "section": "",
+    "text": "Carregando…"
+  },
+  {
+    "objectID": "trades.html",
+    "href": "trades.html",
+    "title": "Trocas",
+    "section": "",
+    "text": "Carregando…"
+  },
+  {
+    "objectID": "matchup.html",
+    "href": "matchup.html",
+    "title": "Confronto",
+    "section": "",
+    "text": "Carregando…"
+  },
+  {
+    "objectID": "waivers.html",
+    "href": "waivers.html",
+    "title": "Waivers",
+    "section": "",
+    "text": "Carregando…"
+  },
+  {
+    "objectID": "lineup.html",
+    "href": "lineup.html",
+    "title": "Escalação",
+    "section": "",
+    "text": "Carregando…"
+  },
+  {
+    "objectID": "rank.html",
+    "href": "rank.html",
+    "title": "Rank da liga",
     "section": "",
     "text": "Carregando…"
   }

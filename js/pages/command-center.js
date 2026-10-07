@@ -6,9 +6,10 @@ import { el, banner, mount, team } from "../app.js";
 import { card, sectionLabel, statRow, statTile, bar, avatar, teamLogo, teamBadge, winBar, moveSide } from "../components.js";
 
 function leagueBoard(matchups, teamId) {
-  const mineFirst = [...matchups].sort((a, b) => b.is_my_matchup - a.is_my_matchup);
+  const isMine = (m) => String(m.home_team_id) === String(teamId) || String(m.away_team_id) === String(teamId);
+  const mineFirst = [...matchups].sort((a, b) => isMine(b) - isMine(a));
   const rows = mineFirst.map((m) => {
-    const mine = String(m.home_team_id) === String(teamId) || String(m.away_team_id) === String(teamId);
+    const mine = isMine(m);
     return el("div", { class: "lb-row" + (mine ? " lb-row--mine" : "") },
       teamBadge(team(m.home_team_id), { size: 22, strong: m.home_win_probability >= 0.5 }),
       el("span", { class: "num" }, fmt.prob(m.home_win_probability, 0)),
