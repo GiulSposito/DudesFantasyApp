@@ -222,6 +222,9 @@ buildEspnDB <- function(snap, pool, .season, .week, .tag, .timestamp) {
       stat_split_type_id = coalesce(as.integer(stat_split_type_id), -1L)
     ) |>
     left_join(pool_locked, by = "player_id") |>
+    # ESPN also sends last season's totals with the same scoring period (0) as
+    # this season's: same PK, and distinct() would keep last season's. Drop them.
+    filter(is.na(stat_season) | stat_season == .season) |>
     distinct(season, week, tag, timestamp, player_id,
              stat_source_id, stat_split_type_id, .keep_all = TRUE) |>
     select(season, week, tag, timestamp, player_id,
