@@ -594,6 +594,30 @@ table.cockpit-table .col-tight { width: 1%; white-space: nowrap; }
   background: var(--ink);
 }
 
+// player drawer comparison: same tracks on every line so the bars align
+.cmp-row {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 140px) minmax(0, 1fr) 44px;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: 6px 4px 0;
+  border-bottom: 1px solid var(--line);
+  font-size: 13px;
+}
+.cmp-row:last-child { border-bottom: 0; }
+.cmp-row--head {
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  padding-bottom: 6px;
+}
+.cmp-row--sel { background: rgba(0, 255, 249, 0.045); }
+.cmp-row--sel .cmp-row__name { color: var(--accent); font-weight: 600; }
+.cmp-row__name { color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cmp-row__num { text-align: right; font-variant-numeric: tabular-nums; }
+
 // ---- loading skeleton -----------------------------------------------
 
 .skeleton { display: grid; gap: var(--sp-3); }
