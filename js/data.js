@@ -146,6 +146,11 @@ export async function getForecast(ffaId) {
   return rows[0] || null;
 }
 
+export async function getForecastByEspnId(espnId) {
+  const rows = await q(`SELECT * FROM forecasts WHERE ${runFilter()} AND espn_id = '${espnId}' LIMIT 1`, "forecasts");
+  return rows[0] || null;
+}
+
 export async function getSourceProjections(ffaId) {
   return q(`SELECT * FROM source_projections WHERE ${runFilter()} AND ffa_id = '${ffaId}' ORDER BY data_src`, "source_projections");
 }

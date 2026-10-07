@@ -144,7 +144,7 @@ export function rankTable(rows, cols, opts = {}) {
 // player line for roster / list views (docs/app_design.md §15)
 export function playerRow(p, { badge: rightBadge, optimal = false } = {}) {
   const opp = oppLabel(p);
-  return el("div", { class: "player-row" + (optimal ? " player-row--optimal" : "") },
+  return playerLink(el("div", { class: "player-row" + (optimal ? " player-row--optimal" : "") },
     avatar(p, { size: 32 }),
     el("div", { class: "player-row__name" }, posBadge(p.position), " ", p.player_name,
       statusBadge(p.injury_status) ? el("span", {}, " ", statusBadge(p.injury_status)) : null,
@@ -156,7 +156,7 @@ export function playerRow(p, { badge: rightBadge, optimal = false } = {}) {
       p.p10 != null ? rangeBar(p.p10, p.p50, p.p90) : ""),
     el("div", { class: "player-row__num player-row__num--strong" }, fmt.points(p.sim_mean)),
     el("div", { class: "player-row__num hide-sm" }, p.is_realized ? fmt.points(p.sim_mean) : "–"),
-    el("div", { class: "player-row__num" }, coverageDot(p.coverage_class)));
+    el("div", { class: "player-row__num" }, coverageDot(p.coverage_class))), p);
 }
 
 // column header for playerRow's grid - same tracks, labels only.
@@ -178,6 +178,27 @@ export function fairnessMeter(value, { min = -10, max = 10 } = {}) {
       el("span", {}, "você ganha mais"), el("span", {}, "equilibrada"), el("span", {}, "ele ganha mais")),
     el("div", { style: "position:relative;height:6px;background:linear-gradient(90deg,#ff5b6e,#131b38,#28e757);border-radius:3px;margin-top:4px" },
       el("div", { style: `position:absolute;left:${(pct * 100).toFixed(1)}%;top:-3px;width:2px;height:12px;background:#fff` })));
+}
+
+// ---- player drawer hook ------------------------------------------------
+
+// openPlayer(p) from player-drawer.js, registered once by app.boot() (avoids an
+// import cycle: the drawer module imports this one).
+let _openPlayer = null;
+export function setPlayerOpener(fn) { _openPlayer = fn; }
+export function openPlayer(p) { return _openPlayer?.(p); }
+
+// Make node open p's detail drawer on click / Enter. stopPropagation keeps the
+// click from also reaching a clickable parent. No usable id -> node untouched.
+export function playerLink(node, p) {
+  if (!p || (p.ffa_id == null && p.player_id == null && p.espn_id == null)) return node;
+  const open = (e) => { e.stopPropagation(); openPlayer(p); };
+  node.classList.add("player-link");
+  node.setAttribute("role", "button");
+  node.setAttribute("tabindex", "0");
+  node.addEventListener("click", open);
+  node.addEventListener("keydown", (e) => { if (e.key === "Enter") open(e); });
+  return node;
 }
 
 // ---- media: headshots, team logos --------------------------------------
