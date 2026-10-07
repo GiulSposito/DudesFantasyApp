@@ -53,6 +53,7 @@ build_rosters <- function(src, run) {
       pos_key = opp_pos_key(position)
     ) |>
     left_join(run_opponents(src, run), by = c("nfl_team", "pos_key")) |>
+    left_join(run_season_stats(src, run), by = "player_id") |>
     transmute(
       run_id, season, week, tag,
       team_id, team_name,
@@ -66,6 +67,8 @@ build_rosters <- function(src, run) {
       prob_gt_10, prob_gt_15, prob_gt_20, prob_gt_25,
       n_sources, coverage_class,
       is_optimal_starter, optimal_slot,
-      bridge_method, is_locked, is_realized
+      bridge_method, is_locked, is_realized,
+      eligible_slot_ids,
+      season_points, ros_points, games_played, ros_games
     )
 }

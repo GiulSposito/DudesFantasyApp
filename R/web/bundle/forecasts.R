@@ -17,12 +17,9 @@ build_forecasts <- function(src, run) {
   fc <- src$decision_db$player_forecasts |> filter(run_id == run$run_id)
   if (!"is_realized" %in% names(fc)) fc$is_realized <- FALSE
 
-  # actual fantasy points so far this season (ESPN, league scoring) as of the
-  # run's ESPN snapshot: scoring period 0, actual, season-total split
-  season_pts <- src$espn_db$espn_players_points |>
-    filter(season == run$season, timestamp == run$espn_timestamp, week == 0L,
-           stat_source_id == 0L, stat_split_type_id == 0L, stat_season == run$season) |>
-    transmute(espn_id = player_id, season_points = fantasy_points)
+  # actual points so far this season, as of the run's ESPN snapshot
+  season_pts <- run_season_stats(src, run) |>
+    transmute(espn_id = player_id, season_points)
 
   fc |>
     # the engine's espn_id is the stale historical xref; prefer this run's bridge

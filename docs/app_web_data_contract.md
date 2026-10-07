@@ -722,6 +722,23 @@ season_points  actual fantasy points so far this season (ESPN, league scoring)
                as of the run's ESPN snapshot; null for FFA-only players
 ```
 
+## Season fields on rosters / free_agents (trade simulator)
+
+Optional, on `current/rosters` and `current/free_agents`, built by
+`run_season_stats()` (`R/web/utils/season_stats.R`) from the run's ESPN snapshot:
+
+```text
+season_points      as above
+ros_points         ESPN rest-of-season projection (scoring period 0, projected,
+                   split 0), through NFL week 18
+games_played       the player's NFL team games before the run week
+ros_games          the player's NFL team games from the run week through week 18
+eligible_slot_ids  comma-separated ESPN lineup slot ids the player can fill
+```
+
+`runs.parquet` also carries `final_scoring_period` (last fantasy scoring period
+of the season) for weeks-left math.
+
 This is a presentation-derived metric, not a new model result.
 
 ---

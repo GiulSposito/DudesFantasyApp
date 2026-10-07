@@ -26,6 +26,7 @@ build_free_agents <- function(src, run) {
     left_join(nfl, by = "player_id") |>
     mutate(pos_key = opp_pos_key(position)) |>
     left_join(run_opponents(src, run), by = c("nfl_team", "pos_key")) |>
+    left_join(run_season_stats(src, run), by = "player_id") |>
     transmute(
       run_id,
       player_id, ffa_id,
@@ -37,6 +38,8 @@ build_free_agents <- function(src, run) {
       prob_gt_10, prob_gt_15, prob_gt_20, prob_gt_25,
       n_sources, coverage_class,
       percent_owned = NA_real_,
-      percent_started = NA_real_
+      percent_started = NA_real_,
+      eligible_slot_ids,
+      season_points, ros_points, games_played, ros_games
     )
 }
