@@ -200,7 +200,7 @@ main.content { padding-top: var(--sp-3); }
 
 .player-row {
   display: grid;
-  grid-template-columns: 34px minmax(0, 1fr) 44px 110px 52px 52px 54px;
+  grid-template-columns: 34px minmax(0, 1fr) 76px 110px 52px 52px 54px;
   align-items: center;
   gap: var(--sp-2);
   padding: 7px 0;

@@ -651,6 +651,11 @@ player_name
 position
 nfl_team
 
+opp_team
+opp_is_home
+opp_rank
+opp_avg
+
 projection
 
 n_sources
@@ -686,6 +691,24 @@ Optional:
 ```text
 historical_bias = sim_mean - projection
 ```
+
+## Opponent fields
+
+Optional, also on `current/rosters` and `current/free_agents`. Built by
+`run_opponents()` (`R/web/utils/opponents.R`) from `espn_pro_games` (the run's
+week) and `espn_pos_vs_opponent` (ESPN "OPRK", newest capture at or before the
+run's `espn_timestamp`):
+
+```text
+opp_team     ESPN abbreviation of the week's NFL opponent, "BYE", or null
+opp_is_home  true when the player's NFL team hosts the game
+opp_rank     1..32 within the player's position; 1 = defense allows the fewest
+             fantasy points (toughest matchup), 32 = the most (easiest)
+opp_avg      fantasy points per game that defense allowed to the position
+```
+
+`opp_rank` / `opp_avg` are null for runs older than the ratings table. In
+`forecasts` the join uses the ESPN team only, so FFA-only players get null.
 
 This is a presentation-derived metric, not a new model result.
 
@@ -797,6 +820,11 @@ ffa_id
 player_name
 position
 nfl_team
+
+opp_team
+opp_is_home
+opp_rank
+opp_avg
 
 lineup_slot_id
 lineup_slot
@@ -1111,6 +1139,11 @@ player_name
 position
 nfl_team
 
+opp_team
+opp_is_home
+opp_rank
+opp_avg
+
 injury_status
 
 projection
@@ -1134,6 +1167,7 @@ percent_started
 ```
 
 `percent_owned` and `percent_started` may be nullable depending on ESPN availability.
+Opponent fields (`opp_*`): see §14.
 
 ---
 

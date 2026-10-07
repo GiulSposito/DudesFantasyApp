@@ -49,12 +49,15 @@ build_rosters <- function(src, run) {
     left_join(opt, by = c("team_id", "espn_id")) |>
     mutate(
       is_optimal_starter = !is.na(optimal_slot),
-      player_id = espn_id
+      player_id = espn_id,
+      pos_key = opp_pos_key(position)
     ) |>
+    left_join(run_opponents(src, run), by = c("nfl_team", "pos_key")) |>
     transmute(
       run_id, season, week, tag,
       team_id, team_name,
       player_id, ffa_id, player_name, position, nfl_team,
+      opp_team, opp_is_home, opp_rank, opp_avg,
       lineup_slot_id, lineup_slot,
       is_starter, is_bench, is_ir,
       injury_status, injured, active,

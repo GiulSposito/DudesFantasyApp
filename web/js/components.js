@@ -44,6 +44,27 @@ export function badge(text, kind = "accent") {
   return el("span", { class: `badge-pill badge-pill--${kind}` }, text);
 }
 
+// Week's NFL opponent + ESPN rank of that defense vs the player's position
+// ("@LV 17º"). Rank 1 = allows the fewest points (red, tough), 32 = the most
+// (green, easy). long -> full sentence for the drawer. null when unknown.
+export function oppLabel(p, { long = false } = {}) {
+  const t = p.opp_team;
+  if (!t) return null;
+  if (t === "BYE") return badge("bye", "q");
+  const r = p.opp_rank;
+  const pos = fmt.pos(p.position);
+  const tip = r == null ? null
+    : `${t} cede ${fmt.points(p.opp_avg)} pts/jogo a ${pos} · ${r}º de 32 (1 = defesa mais difícil)`;
+  const rank = r == null ? null
+    : el("span", { class: "delta " + (r <= 10 ? "delta--neg" : r >= 23 ? "delta--pos" : "delta--zero") },
+      long ? `${r}º de 32` : `${r}º`);
+  if (long) {
+    return el("span", {}, `${p.opp_is_home ? "vs" : "@"} ${t}`,
+      rank ? el("span", {}, " · ", rank, ` contra ${pos} · cede ${fmt.points(p.opp_avg)} pts/jogo`) : null);
+  }
+  return el("span", { title: tip }, `${p.opp_is_home ? "vs " : "@"}${t}`, rank ? " " : null, rank);
+}
+
 export function coverageDot(coverageClass) {
   const c = fmt.coverage(coverageClass);
   return el("span", { class: `coverage-dot ${c.cls}`, title: "Confiança pela cobertura de fontes: " + (coverageClass || "") }, "● " + c.label);
@@ -122,13 +143,15 @@ export function rankTable(rows, cols, opts = {}) {
 
 // player line for roster / list views (docs/app_design.md §15)
 export function playerRow(p, { badge: rightBadge, optimal = false } = {}) {
+  const opp = oppLabel(p);
   return el("div", { class: "player-row" + (optimal ? " player-row--optimal" : "") },
     avatar(p, { size: 32 }),
     el("div", { class: "player-row__name" }, posBadge(p.position), " ", p.player_name,
       statusBadge(p.injury_status) ? el("span", {}, " ", statusBadge(p.injury_status)) : null,
       p.is_locked ? el("span", {}, " ", lockBadge()) : null,
       rightBadge ? el("span", {}, " ", rightBadge) : null),
-    el("div", { class: "player-row__meta hide-sm" }, p.nfl_team || ""),
+    el("div", { class: "player-row__meta hide-sm" }, p.nfl_team || "",
+      opp ? el("div", {}, opp) : null),
     el("div", { class: "player-row__meta hide-sm" },
       p.p10 != null ? rangeBar(p.p10, p.p50, p.p90) : ""),
     el("div", { class: "player-row__num player-row__num--strong" }, fmt.points(p.sim_mean)),
@@ -141,7 +164,7 @@ export function playerRowHeader() {
   return el("div", { class: "player-row player-row--head" },
     el("div", {}, ""),
     el("div", {}, "Jogador"),
-    el("div", { class: "hide-sm" }, "Time"),
+    el("div", { class: "hide-sm", title: "Time NFL e adversário da semana; nº = rank da defesa contra a posição (1 = mais difícil)" }, "Jogo"),
     el("div", { class: "hide-sm", title: "Faixa simulada: piso (P10) a teto (P90), traço na mediana" }, "Faixa P10–P90"),
     el("div", { class: "player-row__num", title: "Média simulada" }, "Proj"),
     el("div", { class: "player-row__num hide-sm", title: "Pontos reais, depois que o jogo trava" }, "Real"),

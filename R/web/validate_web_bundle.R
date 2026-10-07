@@ -132,6 +132,12 @@ validate_web_bundle <- function(output_dir = "web/data") {
     if (length(bad)) .stop(rel, ": coverage_class not in {single,sparse,ensemble}: ", bad[1])
   }
 
+  # --- opponent defense rank (ESPN OPRK) within 1..32 -------------------
+  for (rel in names(data)) {
+    r <- data[[rel]]$opp_rank
+    if (!is.null(r) && any(r < 1 | r > 32, na.rm = TRUE)) .stop(rel, ": opp_rank outside 1..32")
+  }
+
   message("validate_web_bundle: OK (", length(data), " datasets)")
   invisible(TRUE)
 }

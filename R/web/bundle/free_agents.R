@@ -24,10 +24,13 @@ build_free_agents <- function(src, run) {
   fa |>
     left_join(fc, by = c("ffa_id", "pos")) |>
     left_join(nfl, by = "player_id") |>
+    mutate(pos_key = opp_pos_key(position)) |>
+    left_join(run_opponents(src, run), by = c("nfl_team", "pos_key")) |>
     transmute(
       run_id,
       player_id, ffa_id,
       player_name, position, nfl_team,
+      opp_team, opp_is_home, opp_rank, opp_avg,
       injury_status,
       projection, sim_mean, sim_sd,
       p10, p25, p50, p75, p90,

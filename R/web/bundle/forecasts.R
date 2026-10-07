@@ -23,6 +23,9 @@ build_forecasts <- function(src, run) {
     mutate(espn_id = coalesce(run_espn_id, as.integer(espn_id))) |>
     left_join(espn_nm, by = "espn_id") |>
     left_join(ffa_nm, by = "ffa_id") |>
+    # opponent keyed on the ESPN abbreviation only (FFA-only teams like SFO miss)
+    mutate(pos_key = opp_pos_key(pos)) |>
+    left_join(run_opponents(src, run), by = c("espn_team" = "nfl_team", "pos_key")) |>
     mutate(
       player_name = coalesce(espn_name, ffa_name),
       nfl_team    = coalesce(espn_team, ffa_team),
@@ -32,6 +35,7 @@ build_forecasts <- function(src, run) {
       run_id, season, week, tag,
       ffa_id, espn_id, player_name,
       position = pos, nfl_team,
+      opp_team, opp_is_home, opp_rank, opp_avg,
       projection,
       n_sources, coverage_class, source_sd, source_mad,
       sim_mean, sim_sd,
