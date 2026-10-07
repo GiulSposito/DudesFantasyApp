@@ -226,13 +226,23 @@ export function lockBadge() {
 }
 
 // P10–P90 band with a P50 tick, on a shared 0..max scale so rows compare.
+// P10 / P90 printed under the band ends, anchored outward so they never collide
+// on a narrow band; pinned to the bar edges near 0 / max so they stay in the cell.
+// A collapsed band (realized points: P10 == P90) gets one centred label.
+// P50 stays in the tooltip - every caller shows the expected points next to it.
 export function rangeBar(p10, p50, p90, max = 40) {
   const pct = (v) => Math.max(0, Math.min(100, ((v ?? 0) / max) * 100));
   const lo = pct(p10), hi = pct(p90), mid = pct(p50);
+  const lbl = (v, style) => (v == null ? null : el("span", { class: "range-bar__lbl", style }, fmt.points(v, 0)));
+  const labels = p10 != null && p90 != null && Math.abs(p90 - p10) < 0.5
+    ? [lbl(p50 ?? p10, mid < 8 ? "left:0" : mid > 92 ? "right:0" : `left:${mid}%;transform:translateX(-50%)`)]
+    : [lbl(p10, lo < 15 ? "left:0" : `left:${lo}%;transform:translateX(-100%);padding-right:2px`),
+       lbl(p90, hi > 85 ? "right:0" : `left:${hi}%;padding-left:2px`)];
   return el("span", { class: "range-bar",
     title: `P10 ${fmt.points(p10)} · P50 ${fmt.points(p50)} · P90 ${fmt.points(p90)}` },
     el("span", { class: "range-bar__band", style: `left:${lo}%;width:${Math.max(1, hi - lo)}%` }),
-    el("span", { class: "range-bar__mid", style: `left:${mid}%` }));
+    el("span", { class: "range-bar__mid", style: `left:${mid}%` }),
+    ...labels);
 }
 
 // placeholder layout shown while DuckDB-Wasm warms up
