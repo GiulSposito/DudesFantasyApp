@@ -1,6 +1,6 @@
 {
   "schema_version": "1.0.0",
-  "generated_at": "2026-10-07T01:29:52Z",
+  "generated_at": "2026-10-07T01:39:59Z",
   "current": {
     "run_id": "2026-W05-preWaivers-20261006T214202",
     "season": 2026,
@@ -31,8 +31,7 @@
     "source_accuracy": "projections/source_accuracy.parquet",
     "player_points": "history/player_points.parquet",
     "consensus_history": "history/consensus_history.parquet",
-    "matchup_history": "history/matchup_history.parquet",
-    "league_ranks": "history/league_ranks.parquet"
+    "matchup_history": "history/matchup_history.parquet"
   },
   "privacy": "public"
 }
