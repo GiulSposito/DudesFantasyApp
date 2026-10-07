@@ -3,7 +3,8 @@ import * as data from "../data.js";
 import * as state from "../state.js";
 import * as fmt from "../format.js";
 import { el, banner, mount, team } from "../app.js";
-import { sectionLabel, posBadge, coverageDot, deltaSpan, rankTable, drawer, kv, avatar, rangeBar, moveSide, gainBar, oppLabel } from "../components.js";
+import { sectionLabel, posBadge, coverageDot, deltaSpan, rankTable, drawer, kv, avatar, rangeBar, moveSide, gainBar, oppLabel,
+  openPlayer } from "../components.js";
 
 let faPos = "ALL";
 
@@ -79,5 +80,5 @@ export async function render(root) {
     { key: "p10", label: "Faixa P10–P90", fmt: (v, r) => rangeBar(r.p10, r.p50, r.p90) },
     { key: "sim_mean", label: "Proj", num: true, fmt: (v) => el("b", {}, fmt.points(v)) },
     { key: "coverage_class", label: "Conf", num: true, fmt: (v) => coverageDot(v) },
-  ], { empty: "Nenhum free agent nesta posição." }));
+  ], { empty: "Nenhum free agent nesta posição.", onRow: openPlayer }));
 }

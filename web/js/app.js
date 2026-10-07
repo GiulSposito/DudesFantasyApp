@@ -4,7 +4,8 @@
 import * as data from "./data.js";
 import * as state from "./state.js";
 import * as fmt from "./format.js";
-import { skeleton, setPlayerTeams, teamLogo } from "./components.js";
+import { skeleton, setPlayerTeams, setPlayerOpener, teamLogo } from "./components.js";
+import { openPlayer } from "./player-drawer.js";
 
 // ---- small DOM helpers (shared by pages) --------------------------------
 
@@ -98,6 +99,7 @@ export async function boot(pageName) {
   };
   pickRun();
   setPlayerTeams(await data.getPlayerTeams().catch(() => new Map()));
+  setPlayerOpener(openPlayer);
 
   await renderHeader();
 

@@ -4,7 +4,7 @@ import * as state from "../state.js";
 import * as fmt from "../format.js";
 import { el, banner, mount } from "../app.js";
 import { card, sectionLabel, deltaSpan, rankTable, playerRow, playerRowHeader, badge, avatar, rangeBar,
-  statusBadge, lockBadge, moveSide, oppLabel } from "../components.js";
+  statusBadge, lockBadge, moveSide, oppLabel, playerLink } from "../components.js";
 import { opportunityScatter } from "../charts.js";
 
 function comparison(ev) {
@@ -30,7 +30,7 @@ function comparison(ev) {
 }
 
 function slotCard(p, rec) {
-  return el("div", { class: "slot-card" + (rec === "out" ? " slot-card--out" : "") },
+  return playerLink(el("div", { class: "slot-card" + (rec === "out" ? " slot-card--out" : "") },
     avatar(p, { size: 52 }),
     el("div", { style: "min-width:0" },
       el("div", { class: "slot-card__slot" }, p.lineup_slot, rec === "out" ? " · sair" : ""),
@@ -39,7 +39,7 @@ function slotCard(p, rec) {
         p.is_locked ? lockBadge() : statusBadge(p.injury_status))),
     el("div", { class: "slot-card__foot" },
       rangeBar(p.p10, p.p50, p.p90),
-      el("span", { class: "slot-card__pts", title: p.is_realized ? "pontos reais" : "pontos esperados" }, fmt.points(p.sim_mean))));
+      el("span", { class: "slot-card__pts", title: p.is_realized ? "pontos reais" : "pontos esperados" }, fmt.points(p.sim_mean)))), p);
 }
 
 function playerLine(p, rec) {
@@ -71,7 +71,8 @@ export async function render(root) {
       el("div", { class: "move-card__head" }, el("span", {}, `#${r.recommendation_rank} · slot ${r.slot}`),
         el("span", {}, deltaSpan(r.delta_expected, "pts"), " · ", deltaSpan(r.delta_win_probability, "pp"))),
       el("div", { class: "move-card__players" },
-        moveSide(pin, "Escalar", "in", pin), el("span", { class: "move-card__arrow" }, "⇄"), moveSide(pout, "Para o banco", "out", pout)));
+        playerLink(moveSide(pin, "Escalar", "in", pin), pin), el("span", { class: "move-card__arrow" }, "⇄"),
+        playerLink(moveSide(pout, "Para o banco", "out", pout), pout)));
   });
 
   mount(root,

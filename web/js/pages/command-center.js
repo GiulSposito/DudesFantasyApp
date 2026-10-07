@@ -3,7 +3,7 @@ import * as data from "../data.js";
 import * as state from "../state.js";
 import * as fmt from "../format.js";
 import { el, banner, mount, team } from "../app.js";
-import { card, sectionLabel, statRow, statTile, bar, avatar, teamLogo, teamBadge, winBar, moveSide } from "../components.js";
+import { card, sectionLabel, statRow, statTile, bar, avatar, teamLogo, teamBadge, winBar, moveSide, playerLink } from "../components.js";
 
 function leagueBoard(matchups, teamId) {
   const isMine = (m) => String(m.home_team_id) === String(teamId) || String(m.away_team_id) === String(teamId);
@@ -24,9 +24,9 @@ function actionCard(kind, inP, outP, inLabel, outLabel, impact, fc) {
   return el("div", { class: "move-card" },
     el("div", { class: "move-card__head" }, el("span", {}, kind), el("span", { class: "delta delta--pos" }, impact)),
     el("div", { class: "move-card__players" },
-      moveSide(inP, inLabel, "in", fc.get(String(inP.ffa_id))),
+      playerLink(moveSide(inP, inLabel, "in", fc.get(String(inP.ffa_id))), inP),
       el("span", { class: "move-card__arrow" }, "⇄"),
-      moveSide(outP, outLabel, "out", fc.get(String(outP.ffa_id)))));
+      playerLink(moveSide(outP, outLabel, "out", fc.get(String(outP.ffa_id))), outP)));
 }
 
 export async function render(root) {
@@ -75,12 +75,12 @@ export async function render(root) {
       `Chance de vitória em ${fmt.points(my.n_sim, 0)} simulações. Números embaixo dos placares: faixa P10–P90.`));
 
   const starters = roster.filter((p) => p.is_starter).sort((a, b) => a.lineup_slot_id - b.lineup_slot_id);
-  const strip = el("div", { class: "starter-strip" }, ...starters.map((p) =>
+  const strip = el("div", { class: "starter-strip" }, ...starters.map((p) => playerLink(
     el("div", { class: "starter-chip", title: `${p.player_name} · ${p.lineup_slot}` },
       avatar(p, { size: 48 }),
       el("div", { class: "starter-chip__name" }, p.player_name.split(" ").slice(-1)[0]),
       el("div", { class: "starter-chip__pts" }, fmt.points(p.sim_mean)),
-      el("div", { class: "stat__sub" }, p.is_locked ? "🔒 " + p.lineup_slot : p.lineup_slot))));
+      el("div", { class: "stat__sub" }, p.is_locked ? "🔒 " + p.lineup_slot : p.lineup_slot)), p)));
 
   const actions = [];
   if (lineupRec) {

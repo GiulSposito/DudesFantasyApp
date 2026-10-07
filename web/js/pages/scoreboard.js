@@ -5,7 +5,7 @@ import * as data from "../data.js";
 import * as state from "../state.js";
 import * as fmt from "../format.js";
 import { el, banner, mount, team } from "../app.js";
-import { bar, teamLogo, avatar, posBadge, card, sectionLabel } from "../components.js";
+import { bar, teamLogo, avatar, posBadge, card, sectionLabel, playerLink } from "../components.js";
 
 function teamHalf(m, side) {
   const id = m[`${side}_team_id`];
@@ -38,14 +38,14 @@ function matchupCard(m, teamId) {
 
 // one starting slot of a best-lineup card; owner logo only for rostered players
 function bestRow(p) {
-  return el("div", { class: "best-row" },
+  return playerLink(el("div", { class: "best-row" },
     el("div", { class: "best-row__slot" }, p.lineup_slot),
     avatar(p, { size: 32 }),
     el("div", { class: "best-row__name" },
       el("div", {}, posBadge(p.position), " ", p.player_name),
       el("div", { class: "best-row__meta" }, p.nfl_team || "")),
     el("div", { class: "hide-sm" }, p.team_id != null ? teamLogo(team(p.team_id), { size: 24 }) : null),
-    el("div", { class: "best-row__pts" }, fmt.points(p.points)));
+    el("div", { class: "best-row__pts" }, fmt.points(p.points))), p);
 }
 
 function bestCard(title, rows) {

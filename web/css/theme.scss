@@ -325,6 +325,17 @@ table.cockpit-table tbody td {
 table.cockpit-table tbody tr { transition: background-color 120ms ease-out; }
 table.cockpit-table tbody tr:hover { background: rgba(0, 255, 249, 0.04); }
 table.cockpit-table tbody tr.clickable { cursor: pointer; }
+
+// any player element that opens the shared detail drawer (components.playerLink)
+.player-link { cursor: pointer; }
+.player-link:hover .player-row__name,
+.player-link:hover .slot-card__name,
+.player-link:hover .duel__name,
+.player-link:hover .move-side__name,
+.player-link:hover .starter-chip__name,
+.player-link:hover .best-row__name,
+.player-link:hover .cmp-row__name { color: var(--accent); }
+.player-link:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 6px; }
 table.cockpit-table .num { text-align: right; }
 table.cockpit-table .col-tight { width: 1%; white-space: nowrap; }
 
