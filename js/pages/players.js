@@ -4,7 +4,7 @@ import * as state from "../state.js";
 import * as fmt from "../format.js";
 import { el, mount, team } from "../app.js";
 import { sectionLabel, posBadge, coverageDot, rankTable, drawer, kv, statusBadge, sparkline, avatar, rangeBar, teamBadge } from "../components.js";
-import { dotPlot } from "../charts.js";
+import { dotPlot, quantileDensity, densityPoints } from "../charts.js";
 
 let search = "";
 let cov = "ALL";
@@ -12,11 +12,46 @@ let owner = "ALL";            // ALL | MINE | OTHERS | FA
 let sort = { key: "sim_mean", dir: "desc" };
 let limit = 100;
 
-async function detail(row) {
-  const [sources, hist] = await Promise.all([
+// one line of the comparison block; every line shares the grid tracks and the
+// rangeBar scale so the bars line up
+function cmpRow(p, max, selected = false) {
+  return el("div", { class: "cmp-row" + (selected ? " cmp-row--sel" : "") },
+    avatar(p, { size: 28 }),
+    el("div", { class: "cmp-row__name", title: p.player_name }, p.player_name),
+    rangeBar(p.p10, p.p50, p.p90, max),
+    el("div", { class: "cmp-row__num" }, fmt.points(p.sim_mean)));
+}
+
+// selected player + the header team's players at the same position
+function comparison(row, posRows, teamOf) {
+  const { teamId } = state.get();
+  const t = team(teamId);
+  const mates = posRows
+    .filter((r) => String(teamOf.get(String(r.ffa_id))) === String(teamId) && String(r.ffa_id) !== String(row.ffa_id))
+    .map((r) => ({ ...r, player_id: r.espn_id }))
+    .sort((a, b) => b.sim_mean - a.sim_mean);
+  const all = [row, ...mates];
+  const max = Math.max(10, Math.ceil(Math.max(...all.map((r) => r.p90 ?? 0)) / 5) * 5);
+  const pos = fmt.pos(row.position);
+  return [
+    sectionLabel(`Comparação · ${pos} de ${t.team_name}`),
+    el("div", { class: "cmp-row cmp-row--head" },
+      el("div", {}, ""), el("div", {}, "Jogador"),
+      el("div", { title: "Faixa P10–P90, traço na mediana, escala comum" }, `0 – ${max} pts`),
+      el("div", { class: "cmp-row__num" }, "Proj")),
+    cmpRow(row, max, true),
+    ...mates.map((r) => cmpRow(r, max)),
+    mates.length ? null : el("div", { class: "note-inline" }, `${t.team_name} não tem outro ${pos}.`),
+  ];
+}
+
+async function detail(row, teamOf) {
+  const [sources, hist, posRows] = await Promise.all([
     data.getSourceProjections(row.ffa_id).catch(() => []),
     data.getPlayerHistory(row.ffa_id).catch(() => []),
+    data.getForecasts({ position: fmt.pos(row.position) }).catch(() => []),
   ]);
+  const hasDensity = densityPoints(row).length > 0;
   const weekly = hist.filter((h) => h.week > 0).sort((a, b) => a.season - b.season || a.week - b.week)
     .map((h) => h.actual_points);
   const d = drawer(`${row.player_name}`,
@@ -35,13 +70,18 @@ async function detail(row) {
     kv("P05 / P10 / P25", `${fmt.points(row.p05)} / ${fmt.points(row.p10)} / ${fmt.points(row.p25)}`),
     kv("P50", fmt.points(row.p50)),
     kv("P75 / P90 / P95", `${fmt.points(row.p75)} / ${fmt.points(row.p90)} / ${fmt.points(row.p95)}`),
+    hasDensity ? el("div", { id: "pl-density", style: "margin-top:8px" }) : null,
+    hasDensity ? el("div", { class: "note-inline", style: "margin-top:0" },
+      "Densidade aproximada pelos quantis (P05–P95). Linha cheia = média; pontilhadas = P10 / P50 / P90.") : null,
     sectionLabel("Chance de passar de"),
     kv("10 / 15 pontos", `${fmt.prob(row.prob_gt_10)} / ${fmt.prob(row.prob_gt_15)}`),
     kv("20 / 25 pontos", `${fmt.prob(row.prob_gt_20)} / ${fmt.prob(row.prob_gt_25)}`),
     sectionLabel("Cobertura"),
     kv("Fontes", `${row.n_sources} · ${fmt.coverage(row.coverage_class).label}`),
     sources.length ? sectionLabel("Projeção de cada fonte") : null,
-    sources.length ? el("div", { id: "pl-sources" }) : null);
+    sources.length ? el("div", { id: "pl-sources" }) : null,
+    comparison(row, posRows, teamOf));
+  if (hasDensity) quantileDensity(d.querySelector("#pl-density"), row);
   if (sources.length) {
     dotPlot(d.querySelector("#pl-sources"), [{
       label: row.player_name.split(" ").slice(-1)[0],
@@ -103,7 +143,7 @@ export async function render(root) {
       { key: "prob_gt_20", label: "P(>20)", num: true, sortable: true, fmt: (v) => fmt.prob(v, 0) },
       { key: "n_sources", label: "Fontes", num: true, sortable: true },
       { key: "coverage_class", label: "Conf", num: true, fmt: (v) => coverageDot(v) },
-    ], { onRow: detail, sort: { ...sort, onSort } }),
+    ], { onRow: (r) => detail(r, teamOf), sort: { ...sort, onSort } }),
     rows.length > shown.length ? el("button", { class: "chip btn-more", onclick: () => { limit += 100; render(root); } },
       `Mostrar mais ${Math.min(100, rows.length - shown.length)}`) : null,
   );

@@ -218,3 +218,46 @@ export async function bumpChart(el, rows, { teamOf, selectedTeamId = null } = {}
   }));
   draw(el, traces, layout);
 }
+
+// Quantile-based density: each band between distinct quantiles holds Δp of the
+// mass over Δq points; the curve is drawn at the quantiles themselves, each
+// taking the harmonic mean of its two neighbouring bands (smooths the narrow
+// band spikes), cut at P05 / P95. [] when degenerate (realized points).
+// ponytail: coarse (7 quantiles, tails past P05/P95 cut); persist draw bins if
+// the true shape ever matters
+const Q_PROBS = [["p05", 0.05], ["p10", 0.10], ["p25", 0.25], ["p50", 0.50], ["p75", 0.75], ["p90", 0.90], ["p95", 0.95]];
+export function densityPoints(f) {
+  const pts = [];
+  for (const [k, p] of Q_PROBS) {
+    const q = f[k];
+    if (q == null) continue;
+    if (pts.length && Math.abs(q - pts[pts.length - 1].q) < 1e-9) pts[pts.length - 1].p = p;
+    else pts.push({ q, p });
+  }
+  if (f.is_realized || pts.length < 2) return [];
+  const band = pts.slice(1).map((b, i) => (b.p - pts[i].p) / (b.q - pts[i].q));
+  return pts.map((k, i) => {
+    const a = band[i - 1], b = band[i];
+    return { x: k.q, y: a == null ? b : b == null ? a : (2 * a * b) / (a + b) };
+  });
+}
+
+// Player drawer — approximate density with mean (accent) and P10/P50/P90
+// (dotted) markers. Returns false and draws nothing when degenerate.
+export function quantileDensity(el, f) {
+  const pts = densityPoints(f);
+  if (!pts.length) return false;
+  const color = POS_COLOR[f.position] || ACCENT;
+  const vline = (x, c, dash) => ({ type: "line", x0: x, x1: x, yref: "paper", y0: 0, y1: 1, line: { color: c, dash, width: 1.5 } });
+  draw(el, [{
+    type: "scatter", mode: "lines", x: pts.map((p) => p.x), y: pts.map((p) => p.y),
+    line: { color, shape: "spline", smoothing: 1, width: 2 }, fill: "tozeroy", fillcolor: color + "33",
+    hoverinfo: "skip",
+  }], baseLayout({
+    height: 150, margin: { l: 8, r: 8, t: 8, b: 32 }, showlegend: false,
+    xaxis: { title: { text: "pontos", font: { color: MUTED } }, gridcolor: GRID, zeroline: false, tickfont: { color: MUTED } },
+    yaxis: { visible: false, rangemode: "tozero" },
+    shapes: [vline(f.p10, MUTED, "dot"), vline(f.p50, MUTED, "dot"), vline(f.p90, MUTED, "dot"), vline(f.sim_mean, ACCENT, "solid")],
+  }));
+  return true;
+}
