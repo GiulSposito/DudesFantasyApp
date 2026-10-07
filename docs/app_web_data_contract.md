@@ -710,6 +710,18 @@ opp_avg      fantasy points per game that defense allowed to the position
 `opp_rank` / `opp_avg` are null for runs older than the ratings table. In
 `forecasts` the join uses the ESPN team only, so FFA-only players get null.
 
+## Rank and season fields
+
+Optional:
+
+```text
+pos_rank       1..pos_count, rank within position by sim_mean (1 = best;
+               ties share the lower rank)
+pos_count      players with a forecast at that position in the run
+season_points  actual fantasy points so far this season (ESPN, league scoring)
+               as of the run's ESPN snapshot; null for FFA-only players
+```
+
 This is a presentation-derived metric, not a new model result.
 
 ---

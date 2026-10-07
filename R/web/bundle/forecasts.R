@@ -17,12 +17,22 @@ build_forecasts <- function(src, run) {
   fc <- src$decision_db$player_forecasts |> filter(run_id == run$run_id)
   if (!"is_realized" %in% names(fc)) fc$is_realized <- FALSE
 
+  # actual fantasy points so far this season (ESPN, league scoring) as of the
+  # run's ESPN snapshot: scoring period 0, actual, season-total split
+  season_pts <- src$espn_db$espn_players_points |>
+    filter(season == run$season, timestamp == run$espn_timestamp, week == 0L,
+           stat_source_id == 0L, stat_split_type_id == 0L, stat_season == run$season) |>
+    transmute(espn_id = player_id, season_points = fantasy_points)
+
   fc |>
     # the engine's espn_id is the stale historical xref; prefer this run's bridge
     left_join(run_espn_bridge(src, run), by = "ffa_id") |>
     mutate(espn_id = coalesce(run_espn_id, as.integer(espn_id))) |>
     left_join(espn_nm, by = "espn_id") |>
     left_join(ffa_nm, by = "ffa_id") |>
+    left_join(season_pts, by = "espn_id") |>
+    # rank within position by our simulated mean (1 = best projected)
+    mutate(pos_rank = min_rank(desc(sim_mean)), pos_count = n(), .by = pos) |>
     # opponent keyed on the ESPN abbreviation only (FFA-only teams like SFO miss)
     mutate(pos_key = opp_pos_key(pos)) |>
     left_join(run_opponents(src, run), by = c("espn_team" = "nfl_team", "pos_key")) |>
@@ -36,6 +46,7 @@ build_forecasts <- function(src, run) {
       ffa_id, espn_id, player_name,
       position = pos, nfl_team,
       opp_team, opp_is_home, opp_rank, opp_avg,
+      pos_rank, pos_count, season_points,
       projection,
       n_sources, coverage_class, source_sd, source_mad,
       sim_mean, sim_sd,

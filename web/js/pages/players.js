@@ -63,6 +63,8 @@ async function detail(row, teamOf) {
     weekly.length > 1 ? el("div", { style: "margin-bottom:10px" },
       el("div", { class: "stat__sub" }, "pontos reais por semana (histórico)"), sparkline(weekly, { w: 260, h: 32 })) : null,
     oppLabel(row) ? kv("Adversário", oppLabel(row, { long: true })) : null,
+    row.pos_rank != null ? kv("Rank na posição", `${fmt.pos(row.position)}${row.pos_rank} de ${row.pos_count}`) : null,
+    kv("Pontos na temporada", fmt.points(row.season_points)),
     kv("Projeção (consenso)", fmt.points(row.projection)),
     kv("Média simulada", fmt.points(row.sim_mean)),
     kv("Viés histórico", fmt.points(row.historical_bias, 1)),
@@ -115,7 +117,8 @@ export async function render(root) {
   });
   const shown = rows.slice(0, limit);
   const onSort = (key) => {
-    sort = sort.key === key ? { key, dir: sort.dir === "asc" ? "desc" : "asc" } : { key, dir: key === "player_name" ? "asc" : "desc" };
+    sort = sort.key === key ? { key, dir: sort.dir === "asc" ? "desc" : "asc" }
+      : { key, dir: key === "player_name" || key === "pos_rank" ? "asc" : "desc" };
     render(root);
   };
 
@@ -139,11 +142,15 @@ export async function render(root) {
       { key: "opp_rank", label: "Adv", sortable: true,
         title: "Adversário da semana; nº = rank da defesa contra a posição (1 = mais difícil)",
         fmt: (v, r) => oppLabel(r) ?? "–" },
+      { key: "pos_rank", label: "Rank", sortable: true, title: "Rank na posição pela média simulada (Proj)",
+        fmt: (v, r) => v == null ? "–" : `${fmt.pos(r.position)}${v}` },
       { key: "_team", label: "Dono", fmt: (v) => v == null ? el("span", { class: "stat__sub" }, "FA") : teamBadge(team(v), { size: 18 }) },
       { key: "p10", label: "Faixa P10–P90", fmt: (v, r) => rangeBar(r.p10, r.p50, r.p90) },
       { key: "projection", label: "Consenso", num: true, sortable: true, fmt: (v) => fmt.points(v) },
       { key: "sim_mean", label: "Proj", num: true, sortable: true, fmt: (v) => el("b", {}, fmt.points(v)) },
       { key: "p90", label: "Teto", num: true, sortable: true, fmt: (v) => fmt.points(v) },
+      { key: "season_points", label: "Temp.", num: true, sortable: true, title: "Pontos reais acumulados na temporada",
+        fmt: (v) => fmt.points(v) },
       { key: "prob_gt_20", label: "P(>20)", num: true, sortable: true, fmt: (v) => fmt.prob(v, 0) },
       { key: "n_sources", label: "Fontes", num: true, sortable: true },
       { key: "coverage_class", label: "Conf", num: true, fmt: (v) => coverageDot(v) },
