@@ -543,6 +543,17 @@ table.cockpit-table .col-tight { width: 1%; white-space: nowrap; }
   border-radius: 4px;
   background: var(--line);
   vertical-align: middle;
+  margin-bottom: 12px;   // room for the P10 / P90 labels
+}
+.range-bar__lbl {
+  position: absolute;
+  top: 11px;
+  font-size: 10px;
+  line-height: 1;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  pointer-events: none;
 }
 .range-bar__band {
   position: absolute; top: 0; bottom: 0;
