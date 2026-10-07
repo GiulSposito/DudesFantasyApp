@@ -16,7 +16,7 @@ expected <- c(
   "current/free_agents.parquet", "current/waiver_recommendations.parquet",
   "current/trade_recommendations.parquet", "current/data_health.parquet",
   "projections/source_projections.parquet", "projections/source_accuracy.parquet",
-  "history/league_ranks.parquet"
+  "history/league_ranks.parquet", "history/best_lineups.parquet"
 )
 stopifnot(all(file.exists(file.path(FIX, expected))),
           file.exists(file.path(FIX, "manifest.json")))
@@ -118,7 +118,11 @@ need <- list(
   "history/league_ranks.parquet" = c("season", "week", "team_id", "points", "result",
                                      "cum_points", "wins", "losses", "ties",
                                      "standing_rank", "points_rank", "survival_rank",
-                                     "eliminated")
+                                     "eliminated"),
+  "history/best_lineups.parquet" = c("season", "week", "kind", "slot_order",
+                                     "lineup_slot_id", "lineup_slot", "player_id",
+                                     "player_name", "position", "nfl_team", "points",
+                                     "team_id")
 )
 
 for (rel in names(need)) {

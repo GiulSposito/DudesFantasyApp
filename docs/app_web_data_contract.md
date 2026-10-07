@@ -1611,6 +1611,46 @@ season + week + team_id
 
 ---
 
+# 26.3 history/best_lineups.parquet
+
+## Grain
+
+```text
+1 row = 1 starting slot of a best possible lineup x 1 closed week x kind
+```
+
+## Source
+
+A week is closed once `espn_db` holds a snapshot tagged `"final"` for it (at or
+before the run's ESPN timestamp). From that week's newest `final` snapshot:
+real points from `espn_players_points` (`stat_source_id == 0`,
+`stat_split_type_id == 1`, `week` = the closed week), owners from
+`espn_rosters`. Slot eligibility is the most common `eligible_slot_ids` per
+position (`.fa_slot_map()`), so free agents get one too. The lineup is
+`optimize_lineup()` over the league's starting slots with the real points as
+the objective. Built by `R/web/bundle/best_lineups.R::build_best_lineups()`.
+Feeds the "Dream team" / "Melhores free agents" cards on Placar da rodada,
+shown only for the week selected in the header and only when it has rows.
+
+## Logical PK
+
+```text
+season + week + kind + player_id
+```
+
+## Columns
+
+| column        | meaning |
+| ------------- | ------- |
+| kind          | `league` (rostered by any team - dream team) / `free_agents` (rostered by nobody) |
+| slot_order    | display order within the lineup (slot id, then points) |
+| lineup_slot_id, lineup_slot | ESPN starting slot filled |
+| player_id, player_name, position, nfl_team | ESPN player |
+| points        | real fantasy points in that week |
+| team_id       | owner at the `final` snapshot; NA for `free_agents` |
+
+---
+
 # 27. draft/draft.parquet
 
 ## Grain
