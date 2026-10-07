@@ -1,16 +1,16 @@
 {
   "schema_version": "1.0.0",
-  "generated_at": "2026-10-07T11:12:21Z",
+  "generated_at": "2026-10-07T13:20:19Z",
   "current": {
-    "run_id": "2026-W05-posWaivers-20261007T080146",
+    "run_id": "2026-W05-posWaivers-20261007T101452",
     "season": 2026,
     "week": 5,
     "tag": "posWaivers",
     "model_version": "player-mc-v2",
     "n_sim": 10000,
-    "created_at": "2026-10-07T11:04:43Z",
-    "ffa_timestamp": "2026-10-07T11:01:03Z",
-    "espn_timestamp": "2026-10-07T10:58:17Z"
+    "created_at": "2026-10-07T13:18:20Z",
+    "ffa_timestamp": "2026-10-07T13:13:53Z",
+    "espn_timestamp": "2026-10-07T13:11:50Z"
   },
   "datasets": {
     "runs": "runs.parquet",
@@ -35,5 +35,5 @@
     "league_ranks": "history/league_ranks.parquet",
     "best_lineups": "history/best_lineups.parquet"
   },
-  "privacy": "private"
+  "privacy": "public"
 }

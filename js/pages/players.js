@@ -3,7 +3,7 @@ import * as data from "../data.js";
 import * as state from "../state.js";
 import * as fmt from "../format.js";
 import { el, mount, team } from "../app.js";
-import { sectionLabel, posBadge, coverageDot, rankTable, drawer, kv, statusBadge, sparkline, avatar, rangeBar, teamBadge } from "../components.js";
+import { sectionLabel, posBadge, coverageDot, rankTable, drawer, kv, statusBadge, sparkline, avatar, rangeBar, teamBadge, oppLabel } from "../components.js";
 import { dotPlot, quantileDensity, densityPoints } from "../charts.js";
 
 let search = "";
@@ -62,6 +62,7 @@ async function detail(row, teamOf) {
         el("div", { style: "margin-top:4px" }, row._team ? teamBadge(team(row._team), { size: 20 }) : el("span", { class: "stat__sub" }, "free agent")))),
     weekly.length > 1 ? el("div", { style: "margin-bottom:10px" },
       el("div", { class: "stat__sub" }, "pontos reais por semana (histórico)"), sparkline(weekly, { w: 260, h: 32 })) : null,
+    oppLabel(row) ? kv("Adversário", oppLabel(row, { long: true })) : null,
     kv("Projeção (consenso)", fmt.points(row.projection)),
     kv("Média simulada", fmt.points(row.sim_mean)),
     kv("Viés histórico", fmt.points(row.historical_bias, 1)),
@@ -135,6 +136,9 @@ export async function render(root) {
       { key: "player_name", label: "Jogador", sortable: true,
         fmt: (v, r) => el("span", { class: "player-cell" }, avatar(r, { size: 30 }), posBadge(r.position), " ", v) },
       { key: "nfl_team", label: "Time NFL", fmt: (v) => fmt.nflAbbr(v) },
+      { key: "opp_rank", label: "Adv", sortable: true,
+        title: "Adversário da semana; nº = rank da defesa contra a posição (1 = mais difícil)",
+        fmt: (v, r) => oppLabel(r) ?? "–" },
       { key: "_team", label: "Dono", fmt: (v) => v == null ? el("span", { class: "stat__sub" }, "FA") : teamBadge(team(v), { size: 18 }) },
       { key: "p10", label: "Faixa P10–P90", fmt: (v, r) => rangeBar(r.p10, r.p50, r.p90) },
       { key: "projection", label: "Consenso", num: true, sortable: true, fmt: (v) => fmt.points(v) },

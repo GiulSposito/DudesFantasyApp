@@ -3,7 +3,7 @@ import * as data from "../data.js";
 import * as state from "../state.js";
 import * as fmt from "../format.js";
 import { el, banner, mount, team } from "../app.js";
-import { card, sectionLabel, avatar, teamLogo, winBar, rangeBar, lockBadge, statusBadge } from "../components.js";
+import { card, sectionLabel, avatar, teamLogo, winBar, rangeBar, lockBadge, statusBadge, oppLabel } from "../components.js";
 import { winProbLine } from "../charts.js";
 
 let selectedId = null;
@@ -29,7 +29,7 @@ function duelSide(p, cls, win) {
     el("div", { class: "duel__info" },
       el("div", { class: "duel__name", title: p.player_name }, p.player_name),
       el("div", { class: "duel__meta" },
-        el("span", {}, `${fmt.nflAbbr(p.nfl_team)} · ${shown}`),
+        el("span", {}, fmt.nflAbbr(p.nfl_team), " ", oppLabel(p), ` · ${shown}`),
         p.is_locked ? lockBadge() : statusBadge(p.injury_status),
         p.is_realized ? null : el("span", { style: "flex:1;max-width:120px" }, rangeBar(p.p10, p.p50, p.p90)))),
     el("div", { class: "duel__pts " + (win == null ? "" : win ? "duel__pts--win" : "duel__pts--lose") }, fmt.points(p.sim_mean)));

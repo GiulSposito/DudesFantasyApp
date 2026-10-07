@@ -4,7 +4,7 @@ import * as state from "../state.js";
 import * as fmt from "../format.js";
 import { el, banner, mount } from "../app.js";
 import { card, sectionLabel, deltaSpan, rankTable, playerRow, playerRowHeader, badge, avatar, rangeBar,
-  statusBadge, lockBadge, moveSide } from "../components.js";
+  statusBadge, lockBadge, moveSide, oppLabel } from "../components.js";
 import { opportunityScatter } from "../charts.js";
 
 function comparison(ev) {
@@ -35,7 +35,7 @@ function slotCard(p, rec) {
     el("div", { style: "min-width:0" },
       el("div", { class: "slot-card__slot" }, p.lineup_slot, rec === "out" ? " · sair" : ""),
       el("div", { class: "slot-card__name", title: p.player_name }, p.player_name),
-      el("div", { class: "slot-card__meta" }, fmt.nflAbbr(p.nfl_team), " ",
+      el("div", { class: "slot-card__meta" }, fmt.nflAbbr(p.nfl_team), " ", oppLabel(p), " ",
         p.is_locked ? lockBadge() : statusBadge(p.injury_status))),
     el("div", { class: "slot-card__foot" },
       rangeBar(p.p10, p.p50, p.p90),
