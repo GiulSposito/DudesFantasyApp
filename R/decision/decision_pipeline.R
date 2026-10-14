@@ -111,14 +111,15 @@ run_decision_pipeline <- function(season, week, tag,
   }
 
   # --- Phase 3c: ruled-out / bye rostered players ---------------------------
-  # FFA sources stop listing a player once he is ruled out (IR / OUT /
-  # suspended) or his team is on bye, instead of projecting 0, so a rostered
-  # starter in that state has no forecast and would trip
-  # check_starters_have_forecast(). ESPN's status / bye makes 0 the right
-  # forecast: add a degenerate all-zero row. Only these cases - an ACTIVE
-  # starter with a game and no projection is still a data problem.
+  # FFA sources stop listing a player once they expect him not to play (IR /
+  # OUT / suspended, but also DOUBTFUL and some QUESTIONABLE late in the week)
+  # or his team is on bye, instead of projecting 0, so a rostered starter in
+  # that state has no forecast and would trip check_starters_have_forecast().
+  # Any non-ACTIVE ESPN status / bye makes 0 the right forecast: add a
+  # degenerate all-zero row. Only these cases - an ACTIVE starter with a game
+  # and no projection is still a data problem.
   out_ids <- espn_snap$injury |>
-    filter(injury_status %in% c("OUT", "INJURY_RESERVE", "SUSPENSION")) |>
+    filter(injury_status != "ACTIVE") |>
     pull(player_id)
   ruled_out <- bridged |>
     filter(!is.na(ffa_id), !ffa_id %in% sims$ffa_id) |>
