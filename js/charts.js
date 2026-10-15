@@ -29,7 +29,7 @@ export function baseLayout(overrides = {}) {
 }
 
 const CONFIG = { displayModeBar: false, responsive: true };
-function draw(el, traces, layout) { if (el) window.Plotly.react(el, traces, layout, CONFIG); }
+function draw(el, traces, layout) { return el ? window.Plotly.react(el, traces, layout, CONFIG) : null; }
 
 // Generic labelled scatter. points: [{x,y,label,pos?,size?,color?}]
 function scatter(el, points, { xTitle, yTitle, height = 360, quadrantAt } = {}) {
@@ -57,23 +57,14 @@ function scatter(el, points, { xTitle, yTitle, height = 360, quadrantAt } = {}) 
   }], layout);
 }
 
-// Lineup — x=sim_mean (value), y=sim_sd (risk). Only starters get a text
-// label (bench names collide); everyone has a hover.
-export function opportunityScatter(el, players) {
-  scatter(el, players.map((p) => ({ x: p.sim_mean, y: p.sim_sd,
-    label: p.is_starter ? p.player_name?.split(" ").slice(-1)[0] : "", pos: p.pos,
-    size: p.is_starter ? 13 : 9,
-    hover: `${p.player_name}${p.is_starter ? " (titular)" : ""}<br>média ${p.sim_mean?.toFixed(1)} · desvio ${p.sim_sd?.toFixed(1)}` })),
-    { xTitle: "Pontos esperados (média simulada)", yTitle: "Risco (desvio da simulação)" });
-}
-
-// Trades — x=my Δ, y=their Δ, bubble size ~ trade_score. Names only on hover.
-export function tradeScatter(el, recs) {
-  const max = Math.max(1, ...recs.map((r) => r.trade_score || 0));
-  scatter(el, recs.map((r) => ({ x: r.my_delta_expected, y: r.their_delta_expected,
-    size: 9 + 18 * ((r.trade_score || 0) / max),
+// Trades — x=my Δ, y=their Δ, bubble size ~ score. Names only on hover.
+// keys: which delta / score columns to plot (the trades page's ranking scope).
+export function tradeScatter(el, recs, { my = "my_delta_expected", their = "their_delta_expected", score = "trade_score" } = {}) {
+  const max = Math.max(1, ...recs.map((r) => r[score] || 0));
+  scatter(el, recs.map((r) => ({ x: r[my], y: r[their],
+    size: 9 + 18 * ((r[score] || 0) / max),
     color: r.partner_is_my_opponent ? WARN : ACCENT,
-    hover: `Recebe ${r.receive_player_name} · cede ${r.give_player_name}<br>${r.other_team_name}<br>você +${r.my_delta_expected?.toFixed(1)} · parceiro +${r.their_delta_expected?.toFixed(1)} · nota ${r.trade_score?.toFixed(1)}` })),
+    hover: `Recebe ${r.receive_player_name} · cede ${r.give_player_name}<br>${r.other_team_name}<br>você ${r[my] >= 0 ? "+" : ""}${r[my]?.toFixed(1)} · parceiro ${r[their] >= 0 ? "+" : ""}${r[their]?.toFixed(1)} · nota ${r[score]?.toFixed(1)}` })),
     { xTitle: "Seu ganho (pontos esperados)", yTitle: "Ganho do parceiro", quadrantAt: { x: 0, y: 0 } });
 }
 
@@ -338,4 +329,133 @@ export function quantileDensity(el, f) {
     shapes: [vline(f.p10, MUTED, "dot"), vline(f.p50, MUTED, "dot"), vline(f.p90, MUTED, "dot"), vline(f.sim_mean, ACCENT, "solid")],
   }));
   return true;
+}
+
+// ---- comparison map (docs/comparison_map.md) ----------------------------
+
+const FA_GRAY = "#6b7290";
+const KIND_NAME = { starter: "titular (lineup ótimo)", bench: "banco", fa: "free agent" };
+const posColor = (pos) => POS_COLOR[pos === "D/ST" ? "DST" : pos] || ACCENT;
+
+// pts: compare.mapSet() output. lens "week" draws a P10-P90 forest (best on
+// top), "next" / "real" a scatter with the y = x diagonal. Colour = position,
+// filled = my starter, hollow = my bench, gray = free agent; selectedId gets a
+// cyan ring + name, everyone else hover only. line = {x, y?, label} of the
+// player to beat: a dashed vertical (week) or crosshair with the quadrants
+// (next). titles = {x, y}. onPick(p) on click.
+export function compareMap(el, pts, { lens, line = null, selectedId = null, onPick = null, titles = {} } = {}) {
+  const forest = lens === "week";
+  const isSel = (d) => selectedId != null && String(d.p.player_id) === String(selectedId);
+  const order = forest ? [...pts].sort((a, b) => a.x - b.x) : pts;
+  const name = (d) => d.p.player_name ?? "";
+  const col = (d) => (d.kind === "fa" ? FA_GRAY : posColor(d.p.position));
+  const hover = (d) => {
+    const head = `${name(d)} · ${d.p.position} · ${KIND_NAME[d.kind]}<br>`;
+    if (lens === "week") return head + `média ${fmtN(d.x)} · P10 ${fmtN(d.lo)} – P90 ${fmtN(d.hi)}`;
+    if (lens === "next") return head + `esta semana ${fmtN(d.x)} · próximas ${fmtN(d.y)}/sem`;
+    return head + `projeção ${fmtN(d.x)}/jogo · real ${fmtN(d.y)}/jogo · ${d.n} jogo(s)`;
+  };
+
+  // forest bands: one short thick line per player, under the markers
+  const bands = forest ? order.map((d) => ({
+    type: "scatter", mode: "lines", x: [d.lo, d.hi], y: [name(d), name(d)], showlegend: false, hoverinfo: "skip",
+    line: { color: col(d) + (d.kind === "starter" ? "99" : "55"), width: 7 },
+  })) : [];
+  const traces = ["starter", "bench", "fa"].map((kind) => {
+    const ds = order.filter((d) => d.kind === kind);
+    return {
+      type: "scatter", mode: "markers+text", name: KIND_NAME[kind], showlegend: false,
+      x: ds.map((d) => d.x), y: ds.map((d) => (forest ? name(d) : d.y)),
+      customdata: ds.map((d) => order.indexOf(d)),
+      text: ds.map((d) => (!forest && isSel(d) ? name(d) : "")),
+      textposition: "top center", textfont: { color: INK, size: 11 },
+      marker: {
+        size: ds.map((d) => (lens === "real" ? 7 + 2 * Math.min(d.n, 8) : 11)),
+        color: ds.map((d) => (kind === "bench" ? "rgba(0,0,0,0)" : col(d))),
+        line: { color: ds.map((d) => (isSel(d) ? ACCENT : kind === "bench" ? col(d) : "#050921")),
+          width: ds.map((d) => (isSel(d) ? 3 : kind === "bench" ? 2 : 1)) },
+      },
+      hovertext: ds.map(hover), hovertemplate: "%{hovertext}<extra></extra>",
+    };
+  });
+
+  // legend in neutral ink: the real traces' first point would lend it a position colour
+  const legend = ["starter", "bench", "fa"].filter((k) => order.some((d) => d.kind === k)).map((k) => ({
+    type: "scatter", mode: "markers", name: KIND_NAME[k], x: [null], y: [null], hoverinfo: "skip",
+    marker: { size: 10, color: k === "starter" ? INK : k === "fa" ? FA_GRAY : "rgba(0,0,0,0)",
+      line: { color: k === "bench" ? INK : "#050921", width: k === "bench" ? 2 : 1 } },
+  }));
+
+  const dash = { color: "#8a93b8", dash: "dash", width: 1.5 };
+  const shapes = [], annotations = [];
+  if (line && forest) {
+    shapes.push({ type: "line", x0: line.x, x1: line.x, yref: "paper", y0: 0, y1: 1, line: dash });
+    annotations.push({ x: line.x, yref: "paper", y: 1, yanchor: "bottom", showarrow: false, text: line.label,
+      font: { color: MUTED, size: 10 } });
+  }
+  const m = forest ? null : 1.08 * Math.max(1, ...pts.flatMap((d) => [d.x, d.y]), ...(line ? [line.x, line.y] : []));
+  if (!forest) {
+    shapes.push({ type: "line", x0: 0, y0: 0, x1: m, y1: m, line: { color: "#4c5579", dash: "dot", width: 1 } });
+    if (line && lens === "next") {
+      shapes.push({ type: "line", x0: line.x, x1: line.x, yref: "paper", y0: 0, y1: 1, line: dash },
+        { type: "line", y0: line.y, y1: line.y, xref: "paper", x0: 0, x1: 1, line: dash });
+      annotations.push({ x: line.x, y: line.y, xanchor: "left", yanchor: "bottom", showarrow: false,
+        text: line.label, font: { color: MUTED, size: 10 } });
+      const corner = (right, top, text) => ({ xref: "paper", yref: "paper", x: right ? 0.99 : 0.04, y: top ? 0.99 : 0.05,
+        xanchor: right ? "right" : "left", yanchor: top ? "top" : "bottom", showarrow: false, text,
+        font: { color: "#5d6688", size: 11 } });
+      annotations.push(corner(true, true, "titular firme"), corner(true, false, "streaming"),
+        corner(false, true, "stash"), corner(false, false, "descartável"));
+    }
+  }
+
+  // a little room below 0 so a player on bye (0 this week) is not cut in half
+  const axis = (title) => ({ title: { text: title, font: { color: MUTED } }, gridcolor: GRID, zeroline: false,
+    tickfont: { color: MUTED }, ...(forest ? { rangemode: "tozero" } : { range: [-0.04 * m, m] }) });
+  const layout = baseLayout({
+    height: forest ? 70 + order.length * 24 : 400,
+    margin: { l: forest ? 8 : 52, r: 16, t: line ? 24 : 12, b: 64 },
+    xaxis: axis(titles.x),
+    yaxis: forest ? { type: "category", categoryorder: "array", categoryarray: order.map(name), automargin: true,
+      tickfont: { color: INK, size: 11 }, gridcolor: GRID } : axis(titles.y),
+    shapes, annotations,
+    showlegend: true, legend: { orientation: "h", y: -0.12, yanchor: "top", font: { color: MUTED, size: 11 } },
+  });
+  const done = draw(el, [...bands, ...traces, ...legend], layout);
+  if (onPick && done) {
+    done.then(() => {
+      el.removeAllListeners?.("plotly_click");
+      el.on("plotly_click", (ev) => {
+        const i = ev.points?.[0]?.customdata;
+        if (i != null) onPick(order[i].p);
+      });
+    });
+  }
+}
+
+// Player drawer — closed weeks of the season: the P10-P90 band projected
+// before each game, a tick at the projected mean and the actual points (green
+// above P90, red below P10). rows: history/player_weeks of one player.
+export function weeklyBands(el, rows, { position } = {}) {
+  const color = posColor(position);
+  const x = rows.map((r) => `S${r.week}`);
+  const played = rows.filter((r) => r.actual_points != null);
+  draw(el, [{
+    type: "bar", x, base: rows.map((r) => r.p10), y: rows.map((r) => r.p90 - r.p10), width: 0.5,
+    marker: { color: color + "40", line: { width: 0 } },
+    hovertemplate: rows.map((r) => `S${r.week} projetado ${fmtN(r.sim_mean)} · P10 ${fmtN(r.p10)} – P90 ${fmtN(r.p90)}<extra></extra>`),
+  }, {
+    type: "scatter", mode: "markers", x, y: rows.map((r) => r.sim_mean), hoverinfo: "skip",
+    marker: { symbol: "line-ew-open", size: 20, color, line: { color, width: 2 } },
+  }, {
+    type: "scatter", mode: "markers", x: played.map((r) => `S${r.week}`), y: played.map((r) => r.actual_points),
+    marker: { size: 10, color: played.map((r) => (r.actual_points > r.p90 ? GOOD : r.actual_points < r.p10 ? BAD : INK)),
+      line: { color: "#050921", width: 1 } },
+    hovertemplate: played.map((r) => `S${r.week} real ${fmtN(r.actual_points)}<extra></extra>`),
+  }], baseLayout({
+    height: 190, margin: { l: 36, r: 8, t: 8, b: 28 }, showlegend: false,
+    xaxis: { type: "category", tickfont: { color: MUTED }, gridcolor: GRID },
+    yaxis: { title: { text: "pontos", font: { color: MUTED } }, gridcolor: GRID, zeroline: false,
+      tickfont: { color: MUTED }, rangemode: "tozero" },
+  }));
 }

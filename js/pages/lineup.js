@@ -5,7 +5,7 @@ import * as fmt from "../format.js";
 import { el, banner, mount } from "../app.js";
 import { card, sectionLabel, deltaSpan, rankTable, playerRow, playerRowHeader, badge, avatar, rangeBar,
   statusBadge, lockBadge, moveSide, oppLabel, playerLink } from "../components.js";
-import { opportunityScatter } from "../charts.js";
+import { comparisonMap } from "../compare-map.js";
 
 function comparison(ev) {
   const row = (label, cur, opt, isProb) => ({
@@ -96,13 +96,9 @@ export async function render(root) {
     ir.length ? sectionLabel(`IR (${ir.length})`) : null,
     ir.length ? el("div", { class: "cockpit-card cockpit-card--tight" }, ...ir.map((p) => playerLine(p, null))) : null,
 
-    sectionLabel("Mapa de oportunidade: valor x risco"),
-    card(el("div", { id: "lineup-opp" }),
-      el("div", { class: "note-inline" }, "Mais à direita: mais pontos esperados. Mais alto: resultado mais incerto. Nome só nos titulares; passe o mouse nos outros.")),
+    sectionLabel("Mapa de comparação"),
+    card(el("div", { id: "lineup-map" })),
   );
 
-  opportunityScatter(document.getElementById("lineup-opp"),
-    roster.filter((p) => p.sim_mean != null).map((p) => ({
-      player_name: p.player_name, sim_mean: p.sim_mean, sim_sd: p.sim_sd, pos: fmt.pos(p.position), is_starter: p.is_starter,
-    })));
+  await comparisonMap(document.getElementById("lineup-map"), { key: "lineup", teamId, roster, allowAll: true });
 }
