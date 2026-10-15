@@ -115,15 +115,16 @@ run_decision_pipeline <- function(season, week, tag,
   # OUT / suspended, but also DOUBTFUL and some QUESTIONABLE late in the week)
   # or his team is on bye, instead of projecting 0, so a rostered starter in
   # that state has no forecast and would trip check_starters_have_forecast().
-  # Any non-ACTIVE ESPN status / bye makes 0 the right forecast: add a
-  # degenerate all-zero row. Only these cases - an ACTIVE starter with a game
+  # Any non-ACTIVE ESPN status / bye / no NFL team (pro_team "FA": released,
+  # ESPN still says ACTIVE) makes 0 the right forecast: add a degenerate
+  # all-zero row. Only these cases - an ACTIVE starter with a game
   # and no projection is still a data problem.
   out_ids <- espn_snap$injury |>
     filter(injury_status != "ACTIVE") |>
     pull(player_id)
   ruled_out <- bridged |>
     filter(!is.na(ffa_id), !ffa_id %in% sims$ffa_id) |>
-    filter(player_id %in% out_ids | pro_team %in% espn_snap$bye_teams) |>
+    filter(player_id %in% out_ids | pro_team %in% c(espn_snap$bye_teams, "FA")) |>
     distinct(ffa_id, .keep_all = TRUE)
   if (nrow(ruled_out) > 0L) {
     sims <- bind_rows(sims, ruled_out |> transmute(
