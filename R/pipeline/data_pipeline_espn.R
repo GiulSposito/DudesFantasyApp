@@ -97,11 +97,18 @@ getEspnSnapshot <- function(client, .season, .week, .tag, .timestamp) {
 
 # player master (kona_player_info, all statuses) + expanded per-record stats
 # (one row per scoring period / stat_source_id / stat_split_type_id) + ESPN
-# points-allowed-by-position per NFL defense (OPRK)
-getEspnPlayerPool <- function(client, .season, .week, .tag, .timestamp) {
+# points-allowed-by-position per NFL defense (OPRK).
+# horizon_weeks: future scoring periods whose ESPN weekly projection is fetched
+# too (docs/horizon_projections.md) - one call per week, keeping only that week's
+# projection rows (each response also repeats the week-0 season rows, same PK).
+getEspnPlayerPool <- function(client, .season, .week, .tag, .timestamp,
+                              horizon_weeks = integer()) {
+  horizon <- map_dfr(horizon_weeks, \(w)
+    espn_player_stats(client, week = w, limit = 5000L) |>
+      filter(scoring_period_id == w, stat_source_id == 1L, stat_split_type_id == 1L))
   pool <- list(
     players    = espn_all_players(client, week = .week, limit = 5000L),
-    stats      = espn_player_stats(client, week = .week, limit = 5000L),
+    stats      = bind_rows(espn_player_stats(client, week = .week, limit = 5000L), horizon),
     pos_vs_opp = espn_position_vs_opponent(client, week = .week)
   )
   saveEspnTemp(pool, "espn_player_pool", .season, .week, .tag, .timestamp)
@@ -201,7 +208,10 @@ buildEspnDB <- function(snap, pool, .season, .week, .tag, .timestamp) {
 
   # both projected (stat_source_id == 1) and actual (== 0) live here; `week` is
   # the per-record scoring period (varies), not the run week. season pinned to
-  # the run; the record's own season kept as `stat_season`.
+  # the run; the record's own season kept as `stat_season`. Includes the ESPN
+  # weekly projections of the next weeks (horizon_weeks): the snapshots of the
+  # previous weeks also wrote rows for those target weeks, so a reader must pin
+  # `timestamp` to its snapshot, never take max(timestamp) per week.
   # scrape-time roster-lock state (ESPN lineupLocked): TRUE once the player's NFL
   # game has kicked off. Sourced from the player pool, per-player. Used by the
   # decision engine to fold realized points in for players who have played.
@@ -331,7 +341,11 @@ importEspn <- function(config, .season, .week, .tag, .timestamp) {
   
   cli::cli_alert_info(glue("Importing ESPN data s{.season}-w{.week}:{.tag}..."))
   snap    <- getEspnSnapshot(client, .season, .week, .tag, .timestamp)
-  pool    <- getEspnPlayerPool(client, .season, .week, .tag, .timestamp)
+  # W1..W3 weekly projections (docs/horizon_projections.md), capped at season end
+  hw <- .week + 1:3
+  hw <- hw[hw <= coalesce(snap$league$final_scoring_period[1], 17L)]
+  pool    <- getEspnPlayerPool(client, .season, .week, .tag, .timestamp,
+                               horizon_weeks = hw)
   cli::cli_alert_success(glue("ESPN data Imported"))
   
   cli::cli_alert_info(glue("Updating ESPN database..."))
