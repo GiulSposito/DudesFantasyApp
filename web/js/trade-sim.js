@@ -53,7 +53,18 @@ function available(p, lens) {
   return !p.is_ir && String(p.injury_status || "").toUpperCase() !== "OUT";
 }
 
-const slotSet = (p) => new Set(String(p.eligible_slot_ids ?? "").split(",").filter(Boolean).map(Number));
+export const slotSet = (p) => new Set(String(p.eligible_slot_ids ?? "").split(",").filter(Boolean).map(Number));
+
+// p.horizon = [W1, W2, W3] ESPN weekly points (0 when missing) for the horizon
+// lens. hz = data.getHorizon() (Map player_id -> rows)
+export function withHorizon(players, hz) {
+  const weeks = [...new Set([...hz.values()].flat().map((x) => x.target_week))].sort((a, b) => a - b);
+  if (!weeks.length) return players;
+  return players.map((p) => {
+    const rows = hz.get(String(p.player_id)) ?? [];
+    return { ...p, horizon: weeks.map((w) => rows.find((x) => x.target_week === w)?.projection ?? 0) };
+  });
+}
 
 // starting slots, one entry per seat: [{slot_id, slot}]
 export function startingSeats(slots) {

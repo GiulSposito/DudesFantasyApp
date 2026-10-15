@@ -7,7 +7,7 @@ import { el, banner, mount, team } from "../app.js";
 import { card, sectionLabel, posBadge, deltaSpan, rankTable, drawer, fairnessMeter, teamBadge, moveSide, gainBar, badge,
   avatar, oppLabel, playerLink, chips, horizonStrip } from "../components.js";
 import { tradeScatter, strengthStrip, normalOverlay, SIM_ME, SIM_THEM } from "../charts.js";
-import { evaluateTrade, weightedScore } from "../trade-sim.js";
+import { evaluateTrade, weightedScore, withHorizon } from "../trade-sim.js";
 
 // ---- simulator -----------------------------------------------------------
 
@@ -175,16 +175,6 @@ function simCard(r, f, onStrengthLens) {
         el("div", { id: "sim-dist" }),
         el("div", { class: "note-inline" }, `Curva do total do seu time antes × depois. Linha vertical: ${team(r.lenses.week.opponent?.team_id).team_name || "adversário"} (esperado).`))),
     howNote());
-}
-
-// p.horizon = [W1, W2, W3] ESPN weekly points (0 when missing) for the horizon lens
-function withHorizon(players, hz) {
-  const weeks = [...new Set([...hz.values()].flat().map((x) => x.target_week))].sort((a, b) => a - b);
-  if (!weeks.length) return players;
-  return players.map((p) => {
-    const rows = hz.get(String(p.player_id)) ?? [];
-    return { ...p, horizon: weeks.map((w) => rows.find((x) => x.target_week === w)?.projection ?? 0) };
-  });
 }
 
 async function simulator(teamId, hz) {
