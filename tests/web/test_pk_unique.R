@@ -24,6 +24,7 @@ pk <- list(
   "current/data_health.parquet"            = "run_id",
   "projections/source_projections.parquet" = c("run_id", "ffa_id", "position", "data_src"),
   "projections/source_accuracy.parquet"    = c("season", "data_src", "position"),
+  "history/player_weeks.parquet"           = c("season", "week", "ffa_id", "position"),
   "history/league_ranks.parquet"           = c("season", "week", "team_id"),
   "history/best_lineups.parquet"           = c("season", "week", "kind", "player_id")
 )

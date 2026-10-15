@@ -133,6 +133,7 @@ web/
     ├── history/
     │   ├── player_points.parquet
     │   ├── consensus_history.parquet
+    │   ├── player_weeks.parquet
     │   └── matchup_history.parquet
     │
     └── draft/
@@ -1789,6 +1790,47 @@ season + week + kind + player_id
 | player_id, player_name, position, nfl_team | ESPN player |
 | points        | real fantasy points in that week |
 | team_id       | owner at the `final` snapshot; NA for `free_agents` |
+
+---
+
+# 26.4 history/player_weeks.parquet
+
+## Grain
+
+```text
+1 row = 1 player x 1 closed week of the run's season (week < run week)
+```
+
+## Source
+
+Projection: the player's last `decision_db$player_forecasts` row of that week
+that was not yet realized (`is_realized == FALSE`), over the season's runs up to
+the run - the forecast made closest to his game's lock. The per-week runs
+`current/forecasts` keeps are post-game (`preMNF` / `final`, P10 == P90 ==
+actual), so they cannot show what was projected. ESPN id: the bridge of the
+forecast's own run (`current_players` / `free_agents`), falling back to the
+forecast's historical `espn_id`. Actual: `espn_players_points`
+(`stat_source_id == 0`, `stat_split_type_id == 1`) of the week's newest
+snapshot at or before the run's ESPN timestamp (each snapshot carries only its
+own week). Built by `R/web/bundle/history.R::build_player_weeks()`. Feeds the
+player drawer's realized x projected block and the comparison map's Realizado
+lens (`docs/comparison_map.md`); the frontend reads the weeks before the one
+selected in the header.
+
+## Logical PK
+
+```text
+season + week + ffa_id + position
+```
+
+## Columns
+
+| column        | meaning |
+| ------------- | ------- |
+| ffa_id, espn_id, position | player (`position` as in `forecasts`: `DST`) |
+| run_id, tag   | run the projection came from |
+| projection, sim_mean, p10, p50, p90 | consensus and simulated quantiles as projected then |
+| actual_points | real fantasy points that week; NA = no stat row (did not play / bye) |
 
 ---
 

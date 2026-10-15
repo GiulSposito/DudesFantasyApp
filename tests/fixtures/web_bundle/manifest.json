@@ -1,6 +1,6 @@
 {
   "schema_version": "1.0.0",
-  "generated_at": "2026-10-15T21:40:33Z",
+  "generated_at": "2026-10-15T22:07:16Z",
   "current": {
     "run_id": "2026-W06-preTNF-20261015T183441",
     "season": 2026,
@@ -32,6 +32,7 @@
     "source_accuracy": "projections/source_accuracy.parquet",
     "player_points": "history/player_points.parquet",
     "consensus_history": "history/consensus_history.parquet",
+    "player_weeks": "history/player_weeks.parquet",
     "matchup_history": "history/matchup_history.parquet",
     "league_ranks": "history/league_ranks.parquet",
     "best_lineups": "history/best_lineups.parquet"

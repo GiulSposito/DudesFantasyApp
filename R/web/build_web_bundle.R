@@ -114,6 +114,7 @@ build_web_bundle <- function(run_id = NULL, result = NULL,
 
   put("player_points",      build_player_points(src, run),      "history/player_points.parquet")
   put("consensus_history",  build_consensus_history(src, run),  "history/consensus_history.parquet")
+  put("player_weeks",       build_player_weeks(src, run),       "history/player_weeks.parquet")
   put("matchup_history",    build_matchup_history(src, run),    "history/matchup_history.parquet")
   put("league_ranks",       build_league_ranks(src, run),       "history/league_ranks.parquet")
   put("best_lineups",       build_best_lineups(src, run),       "history/best_lineups.parquet")
