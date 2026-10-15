@@ -30,7 +30,10 @@ cand1 <- bind_rows(base,
   mk(40,"RB",12), mk(41,"RB",10), mk(42,"RB",8),
   mk(50,"WR",9),  mk(51,"WR",7),  mk(52,"WR",6))
 o1 <- optimize_lineup(cand1, slots)
-stopifnot(nrow(o1) == 9)                                   # 1+2+2+1+1+1+1
+stopifnot(nrow(o1) == 9,                                   # 1+2+2+1+1+1+1
+          identical(names(o1), c("lineup_slot_id", "lineup_slot", "ffa_id", "pos",
+                                 "sim_mean", "player_name", "espn_id")),
+          !is.unsorted(o1$lineup_slot_id))
 
 slots_1wr <- slots |> mutate(count = if_else(lineup_slot == "WR", 1L, count))
 stopifnot(nrow(optimize_lineup(cand1, slots_1wr)) == 8)

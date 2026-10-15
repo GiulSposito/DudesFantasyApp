@@ -95,7 +95,10 @@ stopifnot(
   all(out$partner_is_my_opponent == FALSE),                 # my_opp is team 20, not 30
   identical(out, recommend_trades(cp, espn_snap, draws, "TESTRUN", 2026, 1, "preview",
                                   team_id = 10L, max_give = 5L,
-                                  max_receive_per_pos = 3L, top_n = 10L))
+                                  max_receive_per_pos = 3L, top_n = 10L)),
+  # no horizon in the snapshot -> week scope only
+  all(is.na(out$rank_future)), all(is.na(out$rank_horizon)),
+  all(is.na(out$my_delta_future)), all(is.na(out$their_delta_horizon))
 )
 
 # bye week: RB3 (mine) and WR12 (partner) on a bye team are never given or
@@ -107,6 +110,52 @@ out_bye <- recommend_trades(cp_bye, c(espn_snap, list(bye_teams = "KC")), draws,
 stopifnot(
   nrow(out_bye) > 0,
   !any(c(3L, 12L) %in% c(out_bye$give_ffa_id, out_bye$receive_ffa_id))
+)
+
+# horizon scopes: WR12 (partner) is on bye THIS week (forecast 0, zero draws) but
+# projects 15 in each of the 2 future weeks; everyone else projects their
+# sim_mean. give RB3 x receive WR12:
+#   week:   bye -> never ranked (my -3, their +7)
+#   future: per week my 42 -> 49 (+7), their 42 -> 43 (+1); x2 weeks = +14 / +2
+#   horizon: my -3 + 14 = 11, their 7 + 2 = 9
+# In the future scope it ties (score 16) with RB4 x WR13 and wins on give_ffa_id.
+# In the horizon scope RB4 x WR12 (my 0 + 20, their 4 - 4) ties it at score 20
+# and wins on my delta (20 > 11), so WR12's horizon row is that pairing.
+cp_hz    <- cp |> mutate(nfl_team = if_else(ffa_id == 12L, "KC", "BUF"),
+                         sim_mean = if_else(ffa_id == 12L, 0, sim_mean))
+draws_hz <- draws; draws_hz[["12"]] <- rep(0, 200)
+hz <- cp |> select(player_id = espn_id, projection = sim_mean) |>
+  crossing(target_week = 2:3)
+snap_hz <- c(espn_snap, list(bye_teams = "KC", horizon = hz))
+out_hz <- recommend_trades(cp_hz, snap_hz, draws_hz, "TESTRUN", 2026, 1, "preview",
+                           team_id = 10L, max_give = 5L, max_receive_per_pos = 3L,
+                           top_n = 10L)
+r12 <- out_hz |> filter(give_ffa_id == 3L, receive_ffa_id == 12L)
+on_bye <- out_hz$give_ffa_id == 12L | out_hz$receive_ffa_id == 12L
+scope_ok <- function(rk) {
+  r <- out_hz[[rk]][!is.na(out_hz[[rk]])]
+  identical(sort(r), seq_along(r)) &&
+    !anyDuplicated(out_hz$receive_player_id[!is.na(out_hz[[rk]])])
+}
+stopifnot(
+  identical(names(out_hz), names(.empty_trade_recs())),
+  nrow(r12) == 1,
+  is.na(r12$recommendation_rank), r12$rank_future == 1L, is.na(r12$rank_horizon),
+  out_hz$rank_horizon[out_hz$give_ffa_id == 4L & out_hz$receive_ffa_id == 12L] == 1L,
+  abs(r12$my_delta_expected    - (-3)) < 1e-9, abs(r12$their_delta_expected - 7) < 1e-9,
+  abs(r12$my_delta_future      - 14)   < 1e-9, abs(r12$their_delta_future   - 2) < 1e-9,
+  abs(r12$my_delta_horizon     - 11)   < 1e-9, abs(r12$their_delta_horizon  - 9) < 1e-9,
+  # horizon = week + future on every row
+  all(abs(out_hz$my_delta_horizon - (out_hz$my_delta_expected + out_hz$my_delta_future)) < 1e-9),
+  all(abs(out_hz$their_delta_horizon -
+          (out_hz$their_delta_expected + out_hz$their_delta_future)) < 1e-9),
+  all(is.na(out_hz$recommendation_rank[on_bye])),          # bye: week scope only
+  scope_ok("recommendation_rank"), scope_ok("rank_future"), scope_ok("rank_horizon"),
+  all(!is.na(out_hz$recommendation_rank) | !is.na(out_hz$rank_future) |
+        !is.na(out_hz$rank_horizon)),
+  identical(out_hz, recommend_trades(cp_hz, snap_hz, draws_hz, "TESTRUN", 2026, 1,
+                                     "preview", team_id = 10L, max_give = 5L,
+                                     max_receive_per_pos = 3L, top_n = 10L))
 )
 
 # team_id = NULL -> advise every team; each ranked independently from 1, and the

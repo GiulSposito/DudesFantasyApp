@@ -144,7 +144,54 @@ stopifnot(
   identical(out$recommendation_rank, seq_len(nrow(out))),
   identical(out, recommend_free_agents(cp, fa_pool, espn_snap_b, draws, "TESTRUN",
                                        2026, 1, "preview", team_id = 10L,
-                                       max_adds_per_pos = 5L, max_drops = 5L, top_n = 10L))
+                                       max_adds_per_pos = 5L, max_drops = 5L, top_n = 10L)),
+  # no horizon in the snapshot -> week scope only
+  all(is.na(out$delta_future)), all(is.na(out$rank_future)), all(is.na(out$rank_horizon))
+)
+
+# horizon scopes: my RB3 and free agent WR103 are on bye THIS week (forecast 0,
+# zero draws); 2 future weeks where everyone projects their usual value (RB3 8,
+# WR103 20). Before: this week 37, each future week 45.
+#   drop dead-weight RB8 / add RB100: week +25, future +17 x 2 = +34, horizon 59
+#   drop RB3 (bye) / add RB100: same deltas, but a bye drop never ranks in the
+#     week scope - and it wins the future / horizon tie on drop_ffa_id (3 < NA)
+#   WR103: week <= 0 (sits / replaces WR4 12), future +8 x 2 = +16 -> rank 2
+cp_hz <- cp |> mutate(nfl_team = if_else(ffa_id %in% 3L, "KC", "BUF"),
+                      sim_mean = if_else(ffa_id %in% 3L, 0, sim_mean))
+fa_hz <- bind_rows(fa_pool, tibble(ffa_id = 103L, pos = "WR", position = "WR", sim_mean = 0,
+                                   eligible_slot_ids = E[["WR"]], player_name = "WR103",
+                                   player_id = 1030L))
+draws_hz <- modifyList(draws, list("3" = rep(0, 200), "103" = rep(0, 200)))
+hz <- bind_rows(
+  cp |> filter(!is.na(sim_mean)) |> select(player_id = espn_id, projection = sim_mean),
+  fa_pool |> select(player_id, projection = sim_mean),
+  tibble(player_id = 1030L, projection = 20)
+) |> crossing(target_week = 2:3)
+snap_hz <- c(espn_snap_b, list(bye_teams = "KC", horizon = hz))
+out_hz <- recommend_free_agents(cp_hz, fa_hz, snap_hz, draws_hz, "TESTRUN",
+                                2026, 1, "preview", team_id = 10L,
+                                max_adds_per_pos = 5L, max_drops = 5L, top_n = 10L)
+r100_dw  <- out_hz |> filter(add_ffa_id == 100L, is.na(drop_ffa_id))
+r100_bye <- out_hz |> filter(add_ffa_id == 100L, drop_ffa_id %in% 3L)
+r103     <- out_hz |> filter(add_ffa_id == 103L)
+stopifnot(
+  identical(names(out_hz), names(.empty_fa_recs())),
+  nrow(r100_dw) == 1, nrow(r100_bye) == 1,
+  r100_dw$recommendation_rank == 1L,
+  abs(r100_dw$delta_expected - 25) < 1e-9, abs(r100_dw$delta_future - 34) < 1e-9,
+  abs(r100_dw$delta_horizon - 59) < 1e-9,
+  is.na(r100_bye$recommendation_rank),
+  r100_bye$rank_future == 1L, r100_bye$rank_horizon == 1L,
+  all(is.na(r103$recommendation_rank)),
+  min(r103$rank_future, na.rm = TRUE) == 2L,
+  abs(r103$delta_future[which(r103$rank_future == 2L)] - 16) < 1e-9,
+  min(r103$rank_horizon, na.rm = TRUE) == 2L,
+  all(is.na(out_hz$recommendation_rank[out_hz$drop_ffa_id %in% 3L])),
+  all(abs(out_hz$delta_horizon - (out_hz$delta_expected + out_hz$delta_future)) < 1e-9),
+  identical(out_hz, recommend_free_agents(cp_hz, fa_hz, snap_hz, draws_hz, "TESTRUN",
+                                          2026, 1, "preview", team_id = 10L,
+                                          max_adds_per_pos = 5L, max_drops = 5L,
+                                          top_n = 10L))
 )
 
 # no unique opponent -> empty, no error

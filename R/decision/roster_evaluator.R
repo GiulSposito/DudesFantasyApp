@@ -109,3 +109,34 @@ evaluate_roster <- function(candidates, roster_slots, draws_by_ffa,
     optimal_lineup = list(opt)
   )
 }
+
+# --- horizon value (spec 23, docs/horizon_projections.md) --------------------
+
+# Value of a roster over the future weeks W1..W3: for each target week, the best
+# lineup's points with sim_mean replaced by ESPN's weekly projection for that
+# week, summed over the weeks. Means only - no draws, no win probability, no pins
+# (locks are a this-week concept). A player with no projection row that week
+# counts 0 (no game / bye). horizon = espn_snap$horizon (player_id, target_week,
+# projection); NULL / 0 rows -> 0, so callers without a horizon get the W0-only
+# behaviour unchanged.
+evaluate_roster_horizon <- function(candidates, roster_slots, horizon) {
+  if (is.null(horizon) || nrow(horizon) == 0L) return(0)
+  key   <- as.integer(candidates$espn_id)
+  total <- 0
+  for (w in unique(horizon$target_week)) {
+    in_w <- horizon$target_week == w
+    candidates$sim_mean <- coalesce(
+      horizon$projection[in_w][match(key, horizon$player_id[in_w])], 0)
+    # a roster short of a position some week just leaves that slot empty
+    total <- total + sum(suppressWarnings(optimize_lineup(candidates, roster_slots))$sim_mean)
+  }
+  total
+}
+
+# per-player sum of the ESPN projections over the horizon weeks (0 when none) -
+# the player-level "future value" used to pick trade / waiver candidate pools
+.future_points <- function(espn_id, horizon) {
+  if (is.null(horizon) || nrow(horizon) == 0L) return(rep(0, length(espn_id)))
+  s <- tapply(horizon$projection, horizon$player_id, sum)
+  coalesce(as.vector(s[as.character(espn_id)]), 0)
+}

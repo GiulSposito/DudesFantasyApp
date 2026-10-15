@@ -40,4 +40,22 @@ stopifnot(
   identical(ev, evaluate_roster(cand, slots, draws, opp))   # deterministic
 )
 
+# --- horizon value: per-week best lineup on ESPN projections, summed ---------
+# week 7: QB 20 + RB 15 + WR 10 = 45
+# week 8: RB2 on bye (0) -> RB3 (7) starts; WR4 has no row -> 0; QB 18 => 25
+hz <- tibble(
+  player_id   = c(10L, 20L, 30L, 40L,   10L, 20L, 30L),
+  target_week = c( 7L,  7L,  7L,  7L,    8L,  8L,  8L),
+  projection  = c( 20,  15,   5,  10,    18,   0,   7)
+)
+stopifnot(
+  abs(evaluate_roster_horizon(cand, slots, hz) - 70) < 1e-9,
+  # this week's sim_mean is irrelevant to the horizon
+  abs(evaluate_roster_horizon(mutate(cand, sim_mean = NA_real_), slots, hz) - 70) < 1e-9,
+  evaluate_roster_horizon(cand, slots, NULL) == 0,
+  evaluate_roster_horizon(cand, slots, hz[0, ]) == 0,
+  identical(.future_points(c(10L, 20L, 30L, 40L, 99L), hz), c(38, 15, 12, 10, 0)),
+  identical(.future_points(c(10L, 20L), NULL), c(0, 0))
+)
+
 cat("PASS test_roster_evaluator.R\n")

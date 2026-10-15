@@ -38,4 +38,41 @@ stopifnot(isTRUE(check_ffa_snapshot_quality(
   mutate(snap$proj_source)
 )))
 
+# --- ESPN horizon: pinned to the selected snapshot's timestamp ---------------
+# W5 snapshot (ts1) wrote target weeks 6..8; W6 snapshots ts2 then ts3 wrote 7..9.
+# Selecting week 6 must take only the newest W6 snapshot's rows, and only weeks > 6.
+t1 <- as.POSIXct("2025-10-01 10:00", tz = "UTC")
+t2 <- as.POSIXct("2025-10-08 10:00", tz = "UTC")
+t3 <- as.POSIXct("2025-10-09 10:00", tz = "UTC")
+pts <- function(ts, wk, weeks, val, src = 1L, split = 1L) tibble(
+  season = 2025L, week = weeks, tag = "preview", timestamp = ts, player_id = 7L,
+  stat_source_id = src, stat_split_type_id = split, fantasy_points = val
+)
+espn_db <- list(
+  espn_rosters = tibble(season = 2025L, week = c(5L, 6L, 6L), timestamp = c(t1, t2, t3),
+                        player_id = 7L),
+  espn_players_points = bind_rows(
+    pts(t1, 5L, 6:8, 1),
+    pts(t2, 6L, 7:9, 2),
+    pts(t3, 6L, c(6L, 7:9), c(99, 3, 0, NA)),          # week 6 = this week, not horizon
+    pts(t3, 6L, 7L, 50, split = 0L),                     # not the weekly projection
+    pts(t3, 6L, 8L, 60, src = 0L)                        # not a projection
+  ),
+  espn_matchups = tibble(season = 2025L, week = 6L, timestamp = t3, matchup_period_id = 6L),
+  espn_player_injury_status = tibble(season = integer(), week = integer()),
+  espn_pro_teams = tibble(season = 2025L, pro_team = "KC", bye_week = 8L),
+  espn_roster_slots = tibble(season = 2025L), espn_teams = tibble(season = 2025L),
+  espn_players = tibble(season = 2025L)
+)
+es <- select_espn_snapshot(espn_db, 2025, 6, "preview")
+stopifnot(
+  identical(names(es$horizon), c("player_id", "target_week", "projection")),
+  identical(es$horizon$target_week, 7:9),
+  identical(es$horizon$projection, c(3, 0, 0)),          # ts3 only; NA -> 0
+  identical(es$bye_teams, character())
+)
+# a snapshot taken before the horizon existed -> 0 rows, not an error
+espn_db$espn_players_points <- pts(t3, 6L, 6L, 99)
+stopifnot(nrow(select_espn_snapshot(espn_db, 2025, 6, "preview")$horizon) == 0L)
+
 cat("PASS test_snapshot.R\n")

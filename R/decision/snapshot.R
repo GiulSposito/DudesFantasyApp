@@ -111,12 +111,25 @@ select_espn_snapshot <- function(espn_db, season, week, tag) {
     bye_teams <- pro_teams |> filter(bye_week == !!week) |> pull(pro_team)
   }
 
+  # ESPN weekly projections for the next weeks (docs/horizon_projections.md), as
+  # scraped by THIS snapshot: pinned to ts, never max(timestamp) per week - the
+  # snapshots of the previous weeks also wrote rows for these target weeks. 0 rows
+  # for snapshots taken before importEspn() fetched the horizon. A bye week comes
+  # as a 0 projection.
+  horizon <- espn_db$espn_players_points |>
+    filter(season == !!season, timestamp == ts, week > !!week,
+           stat_source_id == 1L, stat_split_type_id == 1L) |>
+    transmute(player_id   = as.integer(player_id),
+              target_week = as.integer(week),
+              projection  = coalesce(fantasy_points, 0))
+
   list(
     rosters      = rosters,
     matchups     = matchups,
     injury       = injury,
     realized     = realized,
     bye_teams    = bye_teams,
+    horizon      = horizon,
     roster_slots = espn_db$espn_roster_slots |> filter(season == !!season),
     teams        = espn_db$espn_teams |> filter(season == !!season),
     # the fantasy-relevant player universe (free agents = players - rosters), spec 13.

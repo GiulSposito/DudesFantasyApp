@@ -60,11 +60,11 @@ run_decision_pipeline <- function(season, week, tag,
 
   # ESPN player_id <-> ffa_id as bridged for this snapshot (rosters first, then
   # the whole ESPN pool). Used for espn_id on forecasts and for realized points.
-  bridged <- bridge_espn_to_ffa(espn_snap$rosters, analytical_db, ffa_db)
+  bridged      <- bridge_espn_to_ffa(espn_snap$rosters, analytical_db, ffa_db)
+  pool_bridged <- bridge_espn_to_ffa(espn_snap$players, analytical_db, ffa_db)
   id_map <- bind_rows(
     bridged |> select(player_id, ffa_id),
-    bridge_espn_to_ffa(espn_snap$players, analytical_db, ffa_db) |>
-      select(player_id, ffa_id)
+    pool_bridged |> select(player_id, ffa_id)
   ) |>
     filter(!is.na(ffa_id)) |>
     distinct(player_id, .keep_all = TRUE)   # roster bridge (bound first) wins
@@ -119,20 +119,34 @@ run_decision_pipeline <- function(season, week, tag,
   # ESPN still says ACTIVE) makes 0 the right forecast: add a degenerate
   # all-zero row. Only these cases - an ACTIVE starter with a game
   # and no projection is still a data problem.
+  # Free agents on bye get the same zero row (docs/horizon_projections.md): 0
+  # this week, but their W1..W3 value makes them "hold" candidates, and without
+  # a forecast get_free_agents() would drop them from the waiver pool.
   out_ids <- espn_snap$injury |>
     filter(injury_status != "ACTIVE") |>
     pull(player_id)
-  ruled_out <- bridged |>
+  fa_bye <- pool_bridged |>
+    filter(pro_team %in% espn_snap$bye_teams, !player_id %in% bridged$player_id) |>
+    mutate(week = as.integer(.env$week), tag = .env$tag)   # espn_players has no week/tag
+  ruled_out <- bind_rows(
+    bridged |>
+      filter(player_id %in% out_ids | pro_team %in% c(espn_snap$bye_teams, "FA")),
+    fa_bye
+  ) |>
     filter(!is.na(ffa_id), !ffa_id %in% sims$ffa_id) |>
-    filter(player_id %in% out_ids | pro_team %in% c(espn_snap$bye_teams, "FA")) |>
-    distinct(ffa_id, .keep_all = TRUE)
+    distinct(ffa_id, .keep_all = TRUE)                    # rostered rows (bound first) win
   if (nrow(ruled_out) > 0L) {
     sims <- bind_rows(sims, ruled_out |> transmute(
       season, week, tag, ffa_id, espn_id = player_id, pos = .norm_pos(position),
       n_sources = 0L, projection = 0, draws = list(rep(0, n_sim))
     ))
+    is_fa <- ruled_out$player_id %in% fa_bye$player_id
     message(glue::glue("ruled-out / bye players with no projection, forecast 0: ",
-                       "{paste(ruled_out$player_name, collapse = ', ')}"))
+                       "{paste(ruled_out$player_name[!is_fa], collapse = ', ')}",
+                       " (+ {sum(is_fa)} free agent(s) on bye)"))
+  }
+  if (nrow(espn_snap$horizon) == 0L) {
+    message("no ESPN horizon projections in this snapshot: future-week scopes are empty")
   }
   if (length(espn_snap$bye_teams) > 0L) {
     message(glue::glue("bye week: {paste(espn_snap$bye_teams, collapse = ', ')}"))

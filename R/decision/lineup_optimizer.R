@@ -25,12 +25,13 @@ if (!exists("simulate_matchup")) source("./R/decision/matchup_simulation.R")
   as.integer(strsplit(x, ",", fixed = TRUE)[[1]])
 }
 
-# open starting slots from espn_roster_slots, one row per slot instance (spec 16)
+# open starting slots from espn_roster_slots, one row per slot instance (spec 16).
+# Base R, not dplyr: called on every optimize_lineup() (~thousands per run).
 .starting_slots <- function(roster_slots) {
-  roster_slots |>
-    filter(count > 0, !lineup_slot %in% c("BE", "IR")) |>
-    select(lineup_slot_id, lineup_slot, count) |>
-    tidyr::uncount(count)
+  s <- roster_slots[roster_slots$count > 0 & !roster_slots$lineup_slot %in% c("BE", "IR"), ]
+  n <- sum(s$count)
+  tibble::new_tibble(list(lineup_slot_id = rep(s$lineup_slot_id, s$count),
+                          lineup_slot    = rep(s$lineup_slot, s$count)), nrow = n)
 }
 
 # --- optimizer -------------------------------------------------------------
@@ -43,27 +44,30 @@ if (!exists("simulate_matchup")) source("./R/decision/matchup_simulation.R")
 # pos, sim_mean, player_name, espn_id - ordered by lineup_slot_id, desc(sim_mean).
 optimize_lineup <- function(candidates, roster_slots) {
 
+  # base R throughout (no dplyr verbs): trades / waivers / horizon value call this
+  # thousands of times per run, and verb overhead dominated the search itself.
   slots  <- .starting_slots(roster_slots)
   n_slot <- nrow(slots)
   if (n_slot == 0L) stop("optimize_lineup: no open starting slots", call. = FALSE)
 
-  cand <- candidates |>
-    filter(!is.na(ffa_id), !is.na(sim_mean)) |>
-    arrange(desc(sim_mean), ffa_id)          # total order -> deterministic ties
-  if (nrow(cand) == 0L) {
+  cand <- which(!is.na(candidates$ffa_id) & !is.na(candidates$sim_mean))
+  # total order -> deterministic ties
+  cand <- cand[order(-candidates$sim_mean[cand], candidates$ffa_id[cand])]
+  if (length(cand) == 0L) {
     stop("optimize_lineup: no candidates with a forecast", call. = FALSE)
   }
 
-  elig <- lapply(cand$eligible_slot_ids, .parse_slot_ids)
+  elig <- lapply(candidates$eligible_slot_ids[cand], .parse_slot_ids)
   # rows eligible for each slot instance, then reorder slots most-constrained-first
   slot_cands <- lapply(slots$lineup_slot_id, function(sid) {
     which(vapply(elig, function(e) sid %in% e, logical(1)))
   })
   ord        <- order(lengths(slot_cands))   # stable: identical slot types stay adjacent
-  slots      <- slots[ord, ]
+  slot_id    <- slots$lineup_slot_id[ord]
+  slot_name  <- slots$lineup_slot[ord]
   slot_cands <- slot_cands[ord]
 
-  sm   <- cand$sim_mean
+  sm   <- candidates$sim_mean[cand]
   topk <- c(0, cumsum(sm))                   # topk[k + 1] = sum of the k largest sim_mean
   bound_after <- function(i) topk[min(n_slot - i + 1L, length(sm)) + 1L]
 
@@ -79,7 +83,7 @@ optimize_lineup <- function(candidates, roster_slots) {
     rows <- slot_cands[[i]]
     rows <- rows[!used[rows]]
     # symmetry cut: consecutive identical slot types are interchangeable
-    if (i > 1L && slots$lineup_slot_id[i] == slots$lineup_slot_id[i - 1L]) {
+    if (i > 1L && slot_id[i] == slot_id[i - 1L]) {
       rows <- rows[rows > picks[i - 1L]]
     }
     for (r in rows) {
@@ -88,13 +92,13 @@ optimize_lineup <- function(candidates, roster_slots) {
       used[r] <- FALSE
     }
   }
-  rec(1L, logical(nrow(cand)), 0, integer())
+  rec(1L, logical(length(cand)), 0, integer())
 
   if (is.infinite(best$val)) {
     # short bench / exclusions leave a slot unfillable - greedy partial, don't stop
     warning("optimize_lineup: roster cannot fill every slot; returning partial lineup",
             call. = FALSE)
-    used  <- logical(nrow(cand))
+    used  <- logical(length(cand))
     picks <- rep(NA_integer_, n_slot)
     for (i in seq_len(n_slot)) {
       free <- slot_cands[[i]][!used[slot_cands[[i]]]]
@@ -105,17 +109,20 @@ optimize_lineup <- function(candidates, roster_slots) {
     sel <- best$pick
   }
 
-  keep <- !is.na(sel)
-  tibble(
-    lineup_slot_id = slots$lineup_slot_id[keep],
-    lineup_slot    = slots$lineup_slot[keep],
-    ffa_id         = cand$ffa_id[sel[keep]],
-    pos            = cand$pos[sel[keep]],
-    sim_mean       = cand$sim_mean[sel[keep]],
-    player_name    = cand$player_name[sel[keep]],
-    espn_id        = cand$espn_id[sel[keep]]
-  ) |>
-    arrange(lineup_slot_id, desc(sim_mean))
+  keep <- which(!is.na(sel))
+  row  <- cand[sel[keep]]
+  o    <- order(slot_id[keep], -candidates$sim_mean[row])   # lineup_slot_id, desc(sim_mean)
+  row  <- row[o]
+  # new_tibble(), not tibble(): tibble()'s quosure/name checks cost more than the search
+  tibble::new_tibble(list(
+    lineup_slot_id = slot_id[keep][o],
+    lineup_slot    = slot_name[keep][o],
+    ffa_id         = candidates$ffa_id[row],
+    pos            = candidates$pos[row],
+    sim_mean       = candidates$sim_mean[row],
+    player_name    = candidates$player_name[row],
+    espn_id        = candidates$espn_id[row]
+  ), nrow = length(row))
 }
 
 # greedy "top-k per position + best flex" - NOT used in production, kept as the

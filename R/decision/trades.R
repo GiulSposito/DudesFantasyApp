@@ -12,9 +12,16 @@
 # that opponent's current ESPN starters (spec 41) - same convention as
 # recommend_lineups() / recommend_free_agents().
 #
-# ponytail: O(advised teams x partners) evaluate_roster() calls - baselines are
-# recomputed per advising team. A few minutes for the whole league at n_sim=10000;
-# memoise the per-team baseline if that ever matters.
+# Three ranking scopes (docs/horizon_projections.md): week (W0, this week's
+# Monte Carlo - recommendation_rank), future (W1..W3, ESPN weekly projections -
+# rank_future) and horizon (W0..W3 - rank_horizon). A row is kept when it ranks
+# in any scope; each scope has its own top_n. Future values are lineup means per
+# target week (evaluate_roster_horizon()), no win probability. Bye players are
+# excluded from the week scope only - in the others the bye is just a 0 week.
+#
+# ponytail: O(advised teams x partners) evaluate_roster() calls - W0 baselines
+# are recomputed per advising team (the horizon baseline is cached per team).
+# A few minutes for the whole league at n_sim=10000; memoise if that ever matters.
 #
 # ponytail: when the trade partner IS my week's matchup opponent, my_*_win_probability
 # is optimistic - the received player is counted in my simulated matchup on both
@@ -42,22 +49,29 @@ if (!exists("bridge_espn_to_ffa")) source("./R/decision/league_state.R")
     my_delta_expected = double(),
     their_before_expected = double(), their_after_expected = double(),
     their_delta_expected = double(),
+    my_delta_future = double(), my_delta_horizon = double(),
+    their_delta_future = double(), their_delta_horizon = double(),
     my_before_win_probability = double(), my_after_win_probability = double(),
     my_delta_win_probability = double(),
     fairness = double(), trade_score = double(),
     partner_is_my_opponent = logical(),
-    recommendation_rank = integer()
+    recommendation_rank = integer(),
+    rank_future = integer(), rank_horizon = integer()
   )
 }
 
 # --- recommendations (spec 24-28) ---------------------------------------
 
 # current_players : build_current_league_state() output (all teams).
-# espn_snap       : select_espn_snapshot() output (needs $roster_slots, $matchups).
+# espn_snap       : select_espn_snapshot() output (needs $roster_slots, $matchups;
+#                   optional $bye_teams, $horizon).
 # draws_by_ffa    : named list character(ffa_id) -> numeric(n_sim).
 # team_id         : ESPN team_id(s) to advise, or NULL for every team (spec 43).
-# Returns 0..top_n rows PER advised team of the .empty_trade_recs() schema, each
-# team ranked by trade_score desc with recommendation_rank restarting at 1
+# Returns up to top_n rows per scope PER advised team of the .empty_trade_recs()
+# schema. Each scope ranks by its own score, delta_me + min(delta_me, delta_them)
+# (trade_score for the week scope), with ranks restarting at 1 per team; a rank
+# is NA where the row doesn't place in that scope. Without a horizon the future /
+# horizon columns are NA and only recommendation_rank is set.
 # (my_delta_win_probability is reported, not ranked on - MC-noisy, same choice
 # recommend_lineups() / recommend_free_agents() make).
 recommend_trades <- function(current_players, espn_snap, draws_by_ffa,
@@ -81,8 +95,36 @@ recommend_trades <- function(current_players, espn_snap, draws_by_ffa,
   # just excluded from the candidate pool below, same as recommend_lineups().
   pin_of <- function(base) intersect(locked_all, base$ffa_id[base$is_starter])
   # bye-week players forecast 0 this week - a one-week hole, not trade value:
-  # never give or receive them on that basis.
+  # kept out of the week scope (pools + ranking); the future / horizon scopes
+  # see the bye as one 0 week among four.
   bye_ffa <- current_players$ffa_id[current_players$nfl_team %in% espn_snap$bye_teams]
+
+  # W1..W3 (docs/horizon_projections.md)
+  hz     <- espn_snap$horizon
+  has_hz <- !is.null(hz) && nrow(hz) > 0L
+  # future-weeks roster: every mapped, non-IR player - this week's OUT status and
+  # game locks don't bind the next weeks. Baseline cached once per team.
+  # ponytail: locked players stay out of the trade pools in every scope (only
+  # bites late-week runs)
+  h_base <- if (has_hz) {
+    teams <- sort(unique(current_players$team_id))
+    set_names(lapply(teams, function(t) {
+      current_players |>
+        filter(team_id == t, !is.na(ffa_id), !is_ir) |>
+        select(ffa_id, pos, sim_mean, eligible_slot_ids, player_name, espn_id)
+    }), teams)
+  }
+  h_before <- if (has_hz) {
+    vapply(h_base, evaluate_roster_horizon, numeric(1), roster_slots = slots, horizon = hz)
+  }
+  # team t's future-weeks delta when out_id leaves and in_id (from team in_t) arrives
+  h_delta <- function(t, out_id, in_t, in_id) {
+    if (!has_hz) return(NA_real_)
+    b    <- h_base[[as.character(t)]]
+    from <- h_base[[as.character(in_t)]]
+    evaluate_roster_horizon(bind_rows(b[b$espn_id != out_id, ], from[from$espn_id == in_id, ]),
+                            slots, hz) - h_before[[as.character(t)]]
+  }
 
   # bidirectional team -> opponent map (spec 41) - same as recommend_lineups()
   mu  <- espn_snap$matchups |> distinct(home_team_id, away_team_id)
@@ -110,7 +152,9 @@ recommend_trades <- function(current_players, espn_snap, draws_by_ffa,
     tlocked <- intersect(locked_all, b$ffa_id)
     b <- b |> filter(!(ffa_id %in% tlocked & !is_starter))
     b |> select(ffa_id, pos, position, sim_mean, eligible_slot_ids,
-                player_name, espn_id, is_starter)
+                player_name, espn_id, is_starter) |>
+      # per-player value in each scope, for picking the candidate pools
+      mutate(fut = .future_points(espn_id, hz), hzv = sim_mean + fut)
   }
 
   has_draws <- function(x) as.character(x) %in% names(draws_by_ffa)
@@ -140,13 +184,17 @@ recommend_trades <- function(current_players, espn_snap, draws_by_ffa,
   n_before_me <- nrow(my_before$optimal_lineup[[1]])
 
   # GIVE pool: the max_give weakest movable players (you trade from surplus, and
-  # a strong player rarely nets delta_me > 0 anyway). ~max_give x ~13 partners x
-  # max_receive_per_pos evaluate_roster() calls per advised team. Widen max_give /
-  # max_receive_per_pos if the surplus heuristic misses a good trade.
-  give_pool <- my_base |>
-    filter(has_draws(ffa_id), !ffa_id %in% locked_all, !ffa_id %in% bye_ffa) |>
-    arrange(sim_mean) |>
-    head(max_give)
+  # a strong player rarely nets delta_me > 0 anyway) in each scope, unioned.
+  # ~max_give x ~13 partners x max_receive_per_pos evaluate_roster() calls per
+  # advised team and scope. Widen max_give / max_receive_per_pos if the surplus
+  # heuristic misses a good trade.
+  movable   <- my_base |> filter(has_draws(ffa_id), !ffa_id %in% locked_all)
+  give_pool <- bind_rows(
+    movable |> filter(!ffa_id %in% bye_ffa) |> arrange(sim_mean) |> head(max_give),
+    if (has_hz) movable |> arrange(fut) |> head(max_give),
+    if (has_hz) movable |> arrange(hzv) |> head(max_give)
+  ) |>
+    distinct(ffa_id, .keep_all = TRUE)
   if (nrow(give_pool) == 0L) return(.empty_trade_recs())
   give_slots <- lapply(give_pool$eligible_slot_ids, start_elig)
 
@@ -167,23 +215,31 @@ recommend_trades <- function(current_players, espn_snap, draws_by_ffa,
     p_before   <- evaluate_roster(p_base, slots, draws_by_ffa, p_opp_ffa, pinned_ffa = p_pin)
     n_before_them <- nrow(p_before$optimal_lineup[[1]])
 
-    recv_all <- p_base |> filter(has_draws(ffa_id), !ffa_id %in% locked_all, !ffa_id %in% bye_ffa)
+    recv_all <- p_base |> filter(has_draws(ffa_id), !ffa_id %in% locked_all)
     if (nrow(recv_all) == 0L) next
 
     for (gi in seq_len(nrow(give_pool))) {
       g    <- give_pool[gi, ]
       gset <- give_slots[[gi]]
 
-      # RECEIVE candidates: strict upgrade, shares an eligible slot with the give
-      # player (flex-compatible), top max_receive_per_pos per position
-      recv <- recv_all |>
-        filter(sim_mean > g$sim_mean,
-               map_lgl(eligible_slot_ids,
-                       ~ length(intersect(start_elig(.x), gset)) > 0)) |>
-        group_by(pos) |>
-        slice_max(sim_mean, n = max_receive_per_pos, with_ties = FALSE) |>
-        ungroup()
+      # RECEIVE candidates: shares an eligible slot with the give player
+      # (flex-compatible); per scope, a strict upgrade in that scope's value, top
+      # max_receive_per_pos per position; unioned across scopes
+      g_bye <- g$ffa_id %in% bye_ffa
+      ok    <- recv_all |>
+        filter(map_lgl(eligible_slot_ids, ~ length(intersect(start_elig(.x), gset)) > 0))
+      top   <- function(d, v) {
+        d |> group_by(pos) |>
+          slice_max({{ v }}, n = max_receive_per_pos, with_ties = FALSE) |>
+          ungroup()
+      }
+      recv <- bind_rows(
+        if (!g_bye) top(filter(ok, !ffa_id %in% bye_ffa, sim_mean > g$sim_mean), sim_mean),
+        if (has_hz) top(filter(ok, fut > g$fut), fut),
+        if (has_hz) top(filter(ok, hzv > g$hzv), hzv)
+      )
       if (nrow(recv) == 0L) next
+      recv <- recv |> distinct(ffa_id, .keep_all = TRUE)
 
       my_kept <- my_base |> filter(ffa_id != g$ffa_id)
 
@@ -195,8 +251,11 @@ recommend_trades <- function(current_players, espn_snap, draws_by_ffa,
           evaluate_roster(my_cand, slots, draws_by_ffa, my_opp_ffa, pinned_ffa = my_pin))
         if (nrow(my_after$optimal_lineup[[1]]) < n_before_me) next   # roster went illegal (spec 21)
 
-        d_me <- my_after$expected_points - my_before$expected_points
-        if (d_me <= min_delta) next                                  # spec 26 hard rule
+        d_me   <- my_after$expected_points - my_before$expected_points
+        is_bye <- g_bye || r$ffa_id %in% bye_ffa
+        f_me   <- h_delta(tid, g$espn_id, pt, r$espn_id)
+        # spec 26 hard rule, per scope: skip unless my side gains in at least one
+        if (max(c(if (!is_bye) d_me, if (has_hz) c(f_me, d_me + f_me), -Inf)) <= min_delta) next
 
         their_cand  <- bind_rows(p_base |> filter(ffa_id != r$ffa_id),
                                  my_base |> filter(ffa_id == g$ffa_id))
@@ -205,6 +264,7 @@ recommend_trades <- function(current_players, espn_snap, draws_by_ffa,
         if (nrow(their_after$optimal_lineup[[1]]) < n_before_them) next
 
         d_them <- their_after$expected_points - p_before$expected_points
+        f_them <- h_delta(pt, r$espn_id, tid, g$espn_id)
 
         rows[[length(rows) + 1L]] <- tibble(
           run_id  = run_id,
@@ -219,12 +279,15 @@ recommend_trades <- function(current_players, espn_snap, draws_by_ffa,
           their_before_expected = p_before$expected_points,
           their_after_expected  = their_after$expected_points,
           their_delta_expected  = d_them,
+          my_delta_future     = f_me,   my_delta_horizon    = d_me + f_me,
+          their_delta_future  = f_them, their_delta_horizon = d_them + f_them,
           my_before_win_probability = my_before$win_probability,
           my_after_win_probability  = my_after$win_probability,
           my_delta_win_probability  = my_after$win_probability - my_before$win_probability,
           fairness    = -abs(d_me - d_them),
           trade_score = d_me + pmin(d_me, d_them),
-          partner_is_my_opponent = (as.integer(pt) == as.integer(my_opp))
+          partner_is_my_opponent = (as.integer(pt) == as.integer(my_opp)),
+          .bye = is_bye
         )
       }
     }
@@ -232,15 +295,30 @@ recommend_trades <- function(current_players, espn_snap, draws_by_ffa,
 
   if (length(rows) == 0L) return(.empty_trade_recs())
 
-  # one row per received player: the receive is the real decision, the give is the
-  # move that realises it (mirrors recommend_free_agents()' per-add dedup).
-  out <- bind_rows(rows) |>
-    filter(my_delta_expected > min_delta,
-           their_delta_expected >= min_their_delta) |>
-    arrange(desc(trade_score), desc(my_delta_expected), give_ffa_id, receive_ffa_id) |>
-    distinct(receive_player_id, .keep_all = TRUE) |>
-    mutate(recommendation_rank = row_number()) |>
-    head(top_n)
+  # per scope: one row per received player (the receive is the real decision, the
+  # give is the move that realises it - mirrors recommend_free_agents()' per-add
+  # dedup), ranked by delta_me + min(delta_me, delta_them) (= trade_score in the
+  # week scope), top_n. The three ranks land on the same rows - (give, receive)
+  # is unique within one advised team.
+  all <- bind_rows(rows)
+  ranked <- function(d, my, their, col) {
+    d |>
+      filter(.data[[my]] > min_delta, .data[[their]] >= min_their_delta) |>
+      arrange(desc(.data[[my]] + pmin(.data[[my]], .data[[their]])), desc(.data[[my]]),
+              give_ffa_id, receive_ffa_id) |>
+      distinct(receive_player_id, .keep_all = TRUE) |>
+      head(top_n) |>
+      transmute(give_player_id, receive_player_id, !!col := row_number())
+  }
+  k <- c("give_player_id", "receive_player_id")
+  out <- all |>
+    left_join(ranked(filter(all, !.bye), "my_delta_expected", "their_delta_expected",
+                     "recommendation_rank"), by = k) |>
+    left_join(ranked(all, "my_delta_future", "their_delta_future", "rank_future"), by = k) |>
+    left_join(ranked(all, "my_delta_horizon", "their_delta_horizon", "rank_horizon"), by = k) |>
+    filter(!is.na(recommendation_rank) | !is.na(rank_future) | !is.na(rank_horizon)) |>
+    arrange(recommendation_rank, rank_horizon, rank_future) |>
+    select(all_of(names(.empty_trade_recs())))
 
   if (nrow(out) == 0L) .empty_trade_recs() else out
   }

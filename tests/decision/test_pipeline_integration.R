@@ -85,7 +85,8 @@ if (!all(file.exists(need))) {
     nrow(far) == 0 || all(far$drop_player_id %in% cp$espn_id[cp$team_id == my_tid]),
     !any(far$add_player_id %in% cp$espn_id),                   # adds are off-roster
     inherits(res$decision_db$free_agent_recommendations, "data.frame"),
-    length(res$decision_db) == 9
+    length(res$decision_db) == 9,
+    all(is.na(far$rank_future)), all(is.na(far$delta_horizon))   # W1 snapshot: no horizon
   )
 
   # --- Milestone 5: 1x1 trade recommender, every team (spec 24-28, 43) -------
@@ -116,6 +117,7 @@ if (!all(file.exists(need))) {
                                 function(s) all(diff(s) <= 1e-9))),
     give_ok,                                                  # give is on the advised roster
     recv_off,                                                 # receive is not
+    all(is.na(tr$rank_future)), all(is.na(tr$my_delta_horizon)),  # no horizon
     inherits(res$decision_db$trade_recommendations, "data.frame")
   )
 

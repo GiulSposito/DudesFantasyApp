@@ -125,9 +125,11 @@ get_free_agents <- function(espn_snap, player_forecasts, analytical_db, ffa_db,
     add_player_id  = integer(), add_ffa_id  = integer(),
     drop_position = character(), add_position = character(),
     before_expected = double(), after_expected = double(), delta_expected = double(),
+    delta_future = double(), delta_horizon = double(),
     before_win_probability = double(), after_win_probability = double(),
     delta_win_probability  = double(),
-    recommendation_rank = integer()
+    recommendation_rank = integer(),
+    rank_future = integer(), rank_horizon = integer()
   )
 }
 
@@ -136,9 +138,14 @@ get_free_agents <- function(espn_snap, player_forecasts, analytical_db, ffa_db,
 # espn_snap       : select_espn_snapshot() output (needs $roster_slots, $matchups).
 # draws_by_ffa    : named list character(ffa_id) -> numeric(n_sim).
 # team_id         : the ESPN team_id to advise (spec 42, one team).
-# Returns 0..top_n rows of the spec-22 free_agent_recommendations schema, ranked
-# by delta_expected desc (delta_win_probability is reported, not ranked on - it
-# is MC-noisy, same choice recommend_lineups() makes).
+# Returns up to top_n rows per scope of the spec-22 free_agent_recommendations
+# schema. Three ranking scopes (docs/horizon_projections.md, same as
+# recommend_trades()): week (W0, delta_expected - recommendation_rank), future
+# (W1..W3 ESPN weekly projections, delta_future - rank_future) and horizon
+# (W0..W3, delta_horizon - rank_horizon); a rank is NA where the row doesn't place
+# in that scope. Without espn_snap$horizon the future / horizon columns are NA.
+# (delta_win_probability is reported, not ranked on - it is MC-noisy, same choice
+# recommend_lineups() makes).
 recommend_free_agents <- function(current_players, free_agents, espn_snap,
                                   draws_by_ffa, run_id, season, week, tag,
                                   team_id,
@@ -190,32 +197,53 @@ recommend_free_agents <- function(current_players, free_agents, espn_snap,
   before  <- evaluate_roster(base, slots, draws_by_ffa, opp_ffa, pinned_ffa = pinned_team)
   n_before <- nrow(before$optimal_lineup[[1]])
 
+  # W1..W3 (docs/horizon_projections.md): the future-weeks roster is every
+  # mapped, non-IR player - this week's OUT status and locks don't bind
+  hz     <- espn_snap$horizon
+  has_hz <- !is.null(hz) && nrow(hz) > 0L
+  hbase  <- my |> filter(!is.na(ffa_id), !is_ir) |>
+    select(ffa_id, pos, sim_mean, eligible_slot_ids, player_name, espn_id)
+  h_before <- if (has_hz) evaluate_roster_horizon(hbase, slots, hz)
+  base <- base |> mutate(fut = .future_points(espn_id, hz), hzv = sim_mean + fut)
+
   # DROP pool: the weakest kept players + roster dead weight (unmapped / no
   # forecast, not IR) - the latter models "roster full, drop the stash" (spec 21).
   # Locked players excluded - their game is over, dropping them is not a decision.
-  # Bye-week players too - their forecast 0 is a one-week hole, not their value.
-  bye_ffa <- my$ffa_id[my$nfl_team %in% espn_snap$bye_teams]
+  # Bye-week players too, in the week scope - their forecast 0 is a one-week hole,
+  # not their value (the future / horizon scopes count it as one 0 week).
+  # Weakest per scope, unioned.
+  bye_ffa   <- my$ffa_id[my$nfl_team %in% espn_snap$bye_teams]
+  droppable <- base |> filter(!is_locked, !ffa_id %in% locked_ffa)
   drop_pool <- bind_rows(
-    base |> filter(!is_locked, !ffa_id %in% locked_ffa, !ffa_id %in% bye_ffa) |>
-      arrange(sim_mean) |> head(max_drops),
+    droppable |> filter(!ffa_id %in% bye_ffa) |> arrange(sim_mean) |> head(max_drops),
+    if (has_hz) droppable |> arrange(fut) |> head(max_drops),
+    if (has_hz) droppable |> arrange(hzv) |> head(max_drops),
     my |> filter(is.na(ffa_id) | is.na(sim_mean), !is_ir) |>
       transmute(ffa_id = as.integer(ffa_id), pos, position, sim_mean = NA_real_,
                 eligible_slot_ids, player_name, espn_id)
   ) |> distinct(espn_id, .keep_all = TRUE)
 
-  # ADD pool: top max_adds_per_pos free agents per position that (a) have a draw
-  # vector, (b) are not already on the roster, and (c) have not already played
-  # (a locked free agent gains nothing this week) (spec 21)
+  # ADD pool: top max_adds_per_pos free agents per position, per scope (unioned),
+  # that (a) have a draw vector, (b) are not already on the roster, and (c) have
+  # not already played (a locked free agent gains nothing this week) (spec 21).
+  # A free agent on bye this week has sim_mean 0 (zero-filled by the pipeline),
+  # so it can only place in the future / horizon scopes.
+  # ponytail: a locked free agent's future weeks are skipped too (late-week runs only)
   fa_locked <- if ("is_locked" %in% names(free_agents)) free_agents$is_locked else FALSE
-  add_pool <- free_agents |>
+  addable <- free_agents |>
     mutate(.locked = fa_locked) |>
     filter(as.character(ffa_id) %in% names(draws_by_ffa),
            !ffa_id %in% base$ffa_id, !ffa_id %in% locked_ffa,
            !coalesce(.locked, FALSE)) |>
     select(-.locked) |>
-    group_by(pos) |>
-    slice_max(sim_mean, n = max_adds_per_pos, with_ties = FALSE) |>
-    ungroup()
+    mutate(fut = .future_points(player_id, hz), hzv = sim_mean + fut)
+  top <- function(v) {
+    addable |> group_by(pos) |>
+      slice_max({{ v }}, n = max_adds_per_pos, with_ties = FALSE) |>
+      ungroup()
+  }
+  add_pool <- bind_rows(top(sim_mean), if (has_hz) top(fut), if (has_hz) top(hzv)) |>
+    distinct(ffa_id, .keep_all = TRUE)
 
   if (nrow(drop_pool) == 0L || nrow(add_pool) == 0L) return(.empty_fa_recs())
 
@@ -236,6 +264,12 @@ recommend_free_agents <- function(current_players, free_agents, espn_snap,
                                                 pinned_ffa = pinned_team))
       if (nrow(after$optimal_lineup[[1]]) < n_before) next   # roster went illegal (spec 21)
 
+      d_fut <- if (has_hz) {
+        evaluate_roster_horizon(bind_rows(hbase[hbase$espn_id != d$espn_id, ], fa_row(a)),
+                                slots, hz) - h_before
+      } else NA_real_
+      d_now <- after$expected_points - before$expected_points
+
       rows[[length(rows) + 1L]] <- tibble(
         run_id  = run_id,
         season  = as.integer(season), week = as.integer(week), tag = tag,
@@ -245,26 +279,41 @@ recommend_free_agents <- function(current_players, free_agents, espn_snap,
         drop_position  = d$position, add_position = a$position,
         before_expected = before$expected_points,
         after_expected  = after$expected_points,
-        delta_expected  = after$expected_points - before$expected_points,
+        delta_expected  = d_now,
+        delta_future    = d_fut,
+        delta_horizon   = d_now + d_fut,
         before_win_probability = before$win_probability,
         after_win_probability  = after$win_probability,
-        delta_win_probability  = after$win_probability - before$win_probability
+        delta_win_probability  = after$win_probability - before$win_probability,
+        .bye = !is.na(d$ffa_id) && d$ffa_id %in% bye_ffa
       )
     }
   }
 
   if (length(rows) == 0L) return(.empty_fa_recs())
 
-  # one row per free agent: the add is the real decision, the drop is just a move
-  # that realises the gain. A better DST otherwise shows up paired with every
-  # weak drop.
+  # per scope: one row per free agent - the add is the real decision, the drop is
+  # just a move that realises the gain (a better DST otherwise shows up paired
+  # with every weak drop). The three ranks land on the same rows - (drop, add) is
+  # unique. The week scope skips bye drops; a bye ADD never gains this week.
   # ponytail: keeps the best-delta pairing per add; revisit if per-drop detail matters
-  out <- bind_rows(rows) |>
-    filter(delta_expected > min_delta) |>
-    arrange(desc(delta_expected), desc(delta_win_probability), add_ffa_id, drop_ffa_id) |>
-    distinct(add_player_id, .keep_all = TRUE) |>
-    mutate(recommendation_rank = row_number()) |>
-    head(top_n)
+  all <- bind_rows(rows)
+  ranked <- function(d, v, col) {
+    d |>
+      filter(.data[[v]] > min_delta) |>
+      arrange(desc(.data[[v]]), desc(delta_win_probability), add_ffa_id, drop_ffa_id) |>
+      distinct(add_player_id, .keep_all = TRUE) |>
+      head(top_n) |>
+      transmute(drop_player_id, add_player_id, !!col := row_number())
+  }
+  k <- c("drop_player_id", "add_player_id")
+  out <- all |>
+    left_join(ranked(filter(all, !.bye), "delta_expected", "recommendation_rank"), by = k) |>
+    left_join(ranked(all, "delta_future", "rank_future"), by = k) |>
+    left_join(ranked(all, "delta_horizon", "rank_horizon"), by = k) |>
+    filter(!is.na(recommendation_rank) | !is.na(rank_future) | !is.na(rank_horizon)) |>
+    arrange(recommendation_rank, rank_horizon, rank_future) |>
+    select(all_of(names(.empty_fa_recs())))
 
   if (nrow(out) == 0L) .empty_fa_recs() else out
 }
