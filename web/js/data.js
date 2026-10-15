@@ -151,6 +151,18 @@ export async function getHorizon() {
   return out;
 }
 
+// Closed weeks of the selected season (before the selected week) for a set of
+// ffa_ids: the forecast made before each game + the actual points. [] for
+// bundles built before the player_weeks mart existed.
+export async function getPlayerWeeks(ffaIds) {
+  const m = await loadManifest();
+  const ids = [...new Set(ffaIds.filter((x) => x != null).map((x) => `'${x}'`))];
+  if (!m.datasets.player_weeks || !ids.length) return [];
+  const { season, week } = state.get();
+  return q(`SELECT * FROM player_weeks WHERE season = ${Number(season)} AND week < ${Number(week)}
+            AND ffa_id IN (${ids.join(",")}) ORDER BY ffa_id, week`, "player_weeks");
+}
+
 export async function getFreeAgents({ position = "ALL" } = {}) {
   let sql = `SELECT * FROM free_agents WHERE ${runFilter()}`;
   if (position && position !== "ALL") sql += ` AND upper(position) = '${position}'`;

@@ -1,9 +1,42 @@
 # Mapa de comparação de jogadores (projeção × incerteza × realizado)
 
-Análise exploratória feita na semana 6 de 2026. Nada foi implementado ainda;
-este documento registra a ideia, o que foi verificado nos dados e o desenho
-proposto. Relaciona-se com [`horizon_projections.md`](horizon_projections.md)
-(lente "Próx. 4").
+Análise exploratória feita na semana 6 de 2026. Este documento registra a
+ideia, o que foi verificado nos dados e o desenho proposto. Relaciona-se com
+[`horizon_projections.md`](horizon_projections.md) (lente "Próx. 4").
+
+## Status: implementado (itens 1–3 da ordem sugerida)
+
+- **Mart** `history/player_weeks.parquet` (contrato 26.4,
+  `R/web/bundle/history.R::build_player_weeks()`): por jogador × semana fechada
+  da temporada, a **última previsão feita antes do jogo travar** (as runs por
+  semana que o bundle guarda são pós-jogo, com P10 = P90 = realizado, então não
+  servem) + o realizado do snapshot ESPN mais novo da semana.
+- **Lógica** em `web/js/compare.js` (pura, `tests/web/compare.check.mjs`);
+  bloco em `web/js/compare-map.js`; gráficos `compareMap()` / `weeklyBands()`
+  em `web/js/charts.js`.
+- **Lineup**: o scatter média × desvio saiu; entrou o Mapa de comparação do
+  elenco, com chips de slot e **[Todos]** (sem linha "a superar").
+- **Waivers**: Mapa de comparação (slot inicial = FLEX, lente inicial
+  `Próx. 4` quando há horizonte), elegíveis ao slot + 10 melhores FA; o add #1
+  do escopo atual ganha o anel ciano.
+- **Gaveta**: comparação por slot (time do cabeçalho + 3 melhores FA, linha "a
+  superar") e bloco "Realizado × projetado" (faixa semanal, viés, taxa dentro
+  de P10–P90, acima do P90 / abaixo do P10).
+
+Decisões tomadas na implementação:
+
+- Lente **Semana** = barras P10–P90 (forest), não scatter; `Próx. 4` e
+  `Realizado` são scatters com a diagonal y = x.
+- **"Titular" = lineup ótimo** (`is_optimal_starter` / `optimal_slot`), o mesmo
+  que define a linha "a superar"; a linha fica fixa no lineup ótimo da semana
+  atual em todas as lentes.
+- Na lente Realizado os FA entram pelo total de pontos reais (um jogo isolado
+  não passa à frente de um titular constante).
+- **Volatilidade por jogador (item 4) não foi feita.**
+
+Primeira leitura do mart (S1–S5/2026): ~70% dos realizados caem dentro de
+P10–P90 (esperado ≈ 80%), com ~23% abaixo do P10 e ~7% acima do P90 — a
+simulação está otimista na cauda de baixo.
 
 ## A ideia original
 

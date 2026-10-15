@@ -4,7 +4,8 @@ import * as state from "../state.js";
 import * as fmt from "../format.js";
 import { el, banner, mount, team } from "../app.js";
 import { sectionLabel, posBadge, coverageDot, deltaSpan, rankTable, drawer, kv, avatar, rangeBar, moveSide, gainBar, oppLabel,
-  openPlayer, chips, horizonStrip } from "../components.js";
+  openPlayer, chips, horizonStrip, card } from "../components.js";
+import { comparisonMap } from "../compare-map.js";
 
 let faPos = "ALL";
 
@@ -113,6 +114,9 @@ export async function render(root) {
         : "Recomendações de waiver só são calculadas para o seu time."),
     recs.length ? el("div", { class: "note-inline" }, `${note} Clique num card para comparar os dois jogadores.`) : null,
 
+    sectionLabel("Mapa de comparação"),
+    card(el("div", { id: "wv-map" })),
+
     sectionLabel("Free agents disponíveis"),
     el("div", { class: "toolbar" },
       ...["ALL", "QB", "RB", "WR", "TE", "K", "DST"].map((p) =>
@@ -141,4 +145,7 @@ export async function render(root) {
       fmt: (v, r) => horizonStrip(r.sim_mean, hz.get(String(v)), ctx.week, { w0Bye: r.opp_team === "BYE" }) ?? "–" }] : []),
     { key: "coverage_class", label: "Conf", num: true, fmt: (v) => coverageDot(v) },
   ], { empty: "Nenhum free agent nesta posição.", onRow: openPlayer }));
+
+  await comparisonMap(document.getElementById("wv-map"), { key: "waivers", teamId, nFa: 10,
+    defaultLens: hasHz ? "next" : "week", selectedId: recs[0]?.add_player_id });
 }
