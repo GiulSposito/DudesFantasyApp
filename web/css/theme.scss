@@ -758,6 +758,18 @@ table.cockpit-table .col-tight { width: 1%; white-space: nowrap; }
 .gain-bar .bar { height: 6px; }
 .gain-bar__v { text-align: right; font-variant-numeric: tabular-nums; }
 
+// W0..W3 strip (docs/horizon_projections.md): this week = consensus, next weeks =
+// ESPN weekly projection, muted so they never read as this week's numbers
+.hz-rows { display: grid; gap: 2px; margin: var(--sp-2) 0; }
+.hz-row { display: grid; grid-template-columns: 64px minmax(0, 1fr); align-items: center; gap: var(--sp-2); }
+.hz-row__who { font-size: 10px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+.hz-strip { display: flex; flex-wrap: wrap; align-items: center; gap: 2px var(--sp-2); font-size: 12px; white-space: nowrap; }
+.hz-cell { display: inline-flex; align-items: baseline; gap: 3px; color: var(--ink); }
+.hz-cell__wk { font-size: 10px; color: var(--muted); }
+.hz-cell--espn { color: var(--muted); }
+.hz-cell--espn b { font-weight: 500; }
+.hz-cell--sum { padding-left: var(--sp-2); border-left: 1px solid var(--border); }
+
 // ---- matchup duel (slot by slot) -----------------------------------
 
 .duel { display: grid; gap: 2px; }
@@ -897,7 +909,7 @@ table.cockpit-table th.sortable:hover { color: var(--ink-2); }
 
 .sim-lenses {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
   gap: var(--sp-3);
   margin-top: var(--sp-4);
 }

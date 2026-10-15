@@ -66,4 +66,30 @@ assert.ok(Math.abs(weightedScore(r, { week: 1, season: 1, perf: 1 }) - 5 / 3) < 
 const rb = r.lenses.week.strength.find((s) => s.position === "RB");
 assert.ok(rb.me.after > rb.me.before);
 
+// no p.horizon anywhere -> no horizon lens (old bundles / runs)
+assert.deepEqual(Object.keys(r.lenses), ["week", "season", "perf"]);
+
+// horizon lens: one future week where my RB12 is on bye (0). Each week gets its
+// own optimal lineup, so the bench covers the bye that week.
+const H = (team_id, position, sim_mean, hz0) => P(team_id, position, sim_mean, { horizon: [hz0 ?? sim_mean] });
+const A2 = [H(1, "QB", 20), H(1, "RB", 15), H(1, "RB", 12, 0), H(1, "RB", 9), H(1, "WR", 14), H(1, "WR", 11),
+  H(1, "WR", 8), H(1, "TE", 10)];
+const B2 = [H(2, "QB", 18), H(2, "RB", 16), H(2, "RB", 13), H(2, "WR", 17), H(2, "WR", 15), H(2, "WR", 6),
+  H(2, "TE", 7)];
+const r2 = evaluateTrade({
+  rosters: [...A2, ...B2], freeAgents: [], slots, matchups: [],
+  myTeamId: 1, giveId: A2[5].player_id, partnerId: 2, receiveId: B2[2].player_id, weeksLeft: 10,
+});
+assert.deepEqual(Object.keys(r2.lenses), ["week", "horizon", "season", "perf"]);
+// week: 91 -> 92 (+1, as above)
+// hz0:  before QB20 RB15,9 WR14,11 flex WR8 TE10 = 87 (RB12 on bye);
+//       after  QB20 RB15,13 WR14,8 flex RB9 TE10 = 89 (+2)
+const hzMe = r2.lenses.horizon.me;
+assert.deepEqual(hzMe.before.weeks, [91, 87]);
+assert.deepEqual(hzMe.after.weeks, [92, 89]);
+assert.ok(Math.abs(hzMe.delta - 1.5) < 1e-9, `horizon delta ${hzMe.delta}`);   // mean(+1, +2)
+assert.ok(Math.abs(r2.lenses.horizon.them.delta + 8) < 1e-9);
+// equal weights over the four lenses: (1 + 1.5 + 1 + 1) / 4
+assert.ok(Math.abs(weightedScore(r2, { week: 1, horizon: 1, season: 1, perf: 1 }) - 1.125) < 1e-9);
+
 console.log("trade-sim: all checks passed");

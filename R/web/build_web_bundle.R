@@ -98,6 +98,7 @@ build_web_bundle <- function(run_id = NULL, result = NULL,
   put("standings",              per_run(build_standings),              "current/standings.parquet")
   put("rosters",                per_run(build_rosters),                "current/rosters.parquet")
   put("forecasts",              per_run(build_forecasts),              "current/forecasts.parquet")
+  put("horizon_projections",    per_run(build_horizon_projections),    "current/horizon_projections.parquet")
   put("matchups",               per_run(build_matchups),               "current/matchups.parquet")
   put("lineup_evaluations",     per_run(build_lineup_evaluations),     "current/lineup_evaluations.parquet")
   put("lineup_recommendations", per_run(build_lineup_recommendations), "current/lineup_recommendations.parquet")

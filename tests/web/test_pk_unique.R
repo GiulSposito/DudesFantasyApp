@@ -14,6 +14,7 @@ pk <- list(
   "current/standings.parquet"              = c("run_id", "team_id"),
   "current/rosters.parquet"                = c("run_id", "team_id", "player_id"),
   "current/forecasts.parquet"              = c("run_id", "ffa_id", "position"),
+  "current/horizon_projections.parquet"    = c("run_id", "player_id", "target_week"),
   "current/matchups.parquet"               = c("run_id", "matchup_id"),
   "current/lineup_evaluations.parquet"     = c("run_id", "team_id"),
   "current/lineup_recommendations.parquet" = c("run_id", "team_id", "player_out_id"),

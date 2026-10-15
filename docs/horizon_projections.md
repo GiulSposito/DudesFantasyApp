@@ -1,8 +1,22 @@
 # Projeções de horizonte (W0–W3) para trocas e waivers
 
-Análise exploratória feita na semana 6 de 2026 (snapshot `posWaivers`). Nada foi
-implementado ainda; este documento registra o que foi verificado, a estratégia
-escolhida e as decisões já tomadas.
+Análise exploratória feita na semana 6 de 2026 (snapshot `posWaivers`); este
+documento registra o que foi verificado, a estratégia escolhida e as decisões já
+tomadas.
+
+**Status (2026-10-15):** passos 1–3 da "Ordem sugerida" implementados (dados,
+motor, web); o passo 4 (calibração) continua em aberto. Diferenças em relação ao
+desenho abaixo, verificadas no código:
+
+- a chamada por semana futura é `espn_player_stats(week = w)` (inclui jogadores
+  em elenco; `espn_player_pool()` só traz FREEAGENT/WAIVERS);
+- o pool de candidatos é a união dos melhores nos **três** escopos;
+- FAs em bye na semana atual ganham previsão 0 (zero-fill do pipeline) para
+  entrar no pool de waivers;
+- o elenco de W1..W3 inclui quem está OUT nesta semana (só IR fica de fora);
+- a célula W0 da faixa e o Σ usam o consenso (`sim_mean`), não o ESPN W0;
+- `optimize_lineup()` foi reescrito em base R (17 → 1,3 ms/chamada) para o
+  horizonte não encarecer a etapa de trocas.
 
 ## Objetivo
 

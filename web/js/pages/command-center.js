@@ -52,8 +52,9 @@ export async function render(root) {
   const me = iAmHome ? pick("home") : pick("away");
   const opp = iAmHome ? pick("away") : pick("home");
 
-  const bestWaiver = waivers[0];
-  const bestTrade = trades.filter((t) => String(t.my_team_id) === String(teamId))[0];
+  // this week's best (week scope); rows ranked only in the future scopes have no recommendation_rank
+  const bestWaiver = waivers.find((r) => r.recommendation_rank != null);
+  const bestTrade = trades.find((t) => String(t.my_team_id) === String(teamId) && t.recommendation_rank != null);
   const lineupRec = lineupRecs[0];
 
   const fcRows = await data.getForecastsByIds([

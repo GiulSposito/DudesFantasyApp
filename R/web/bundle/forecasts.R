@@ -54,3 +54,27 @@ build_forecasts <- function(src, run) {
       historical_bias
     )
 }
+
+# current/horizon_projections.parquet (contract section 22.1). 1 row = 1 player x
+# future target week (W1..W3) as seen from the run's ESPN snapshot. PK run_id +
+# player_id + target_week. Pinned to run$espn_timestamp: the snapshots of later
+# weeks also write these target weeks. W0 is the consensus forecast, not here.
+# 0 rows for runs whose snapshot predates the horizon (docs/horizon_projections.md).
+build_horizon_projections <- function(src, run) {
+  byes <- src$espn_db$espn_pro_teams |>
+    filter(season == run$season) |>
+    select(pro_team, bye_week)
+
+  src$espn_db$espn_players_points |>
+    filter(season == run$season, timestamp == run$espn_timestamp, week > run$week,
+           stat_source_id == 1L, stat_split_type_id == 1L) |>
+    left_join(byes, by = "pro_team") |>
+    transmute(
+      run_id      = run$run_id,
+      player_id,
+      target_week = as.integer(week),
+      horizon     = as.integer(week) - as.integer(run$week),
+      projection  = coalesce(fantasy_points, 0),
+      is_bye      = coalesce(bye_week == week, FALSE)
+    )
+}

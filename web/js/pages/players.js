@@ -4,18 +4,13 @@ import * as data from "../data.js";
 import * as state from "../state.js";
 import * as fmt from "../format.js";
 import { el, mount, team } from "../app.js";
-import { sectionLabel, posBadge, coverageDot, rankTable, avatar, rangeBar, teamBadge, oppLabel, openPlayer } from "../components.js";
+import { sectionLabel, posBadge, coverageDot, rankTable, avatar, rangeBar, teamBadge, oppLabel, openPlayer, chips } from "../components.js";
 
 let search = "";
 let cov = "ALL";
 let owner = "ALL";            // ALL | MINE | OTHERS | FA
 let sort = { key: "sim_mean", dir: "desc" };
 let limit = 100;
-
-function chips(values, current, onPick, labels = {}) {
-  return values.map((v) => el("button", { class: "chip" + (v === current ? " active" : ""),
-    onclick: () => onPick(v) }, labels[v] || v));
-}
 
 export async function render(root) {
   const { position, teamId } = state.get();

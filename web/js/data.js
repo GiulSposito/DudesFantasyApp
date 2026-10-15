@@ -134,6 +134,23 @@ export async function getTradeRecommendations() {
   return q(`SELECT * FROM trade_recommendations WHERE ${runFilter()} ORDER BY recommendation_rank`, "trade_recommendations");
 }
 
+// ESPN weekly projections of the next weeks (W1..W3) as seen from this run:
+// Map player_id -> rows sorted by target_week. Empty Map for bundles built
+// before the horizon mart existed, and for runs whose snapshot predates it.
+export async function getHorizon() {
+  const m = await loadManifest();
+  if (!m.datasets.horizon_projections) return new Map();
+  const rows = await q(`SELECT * FROM horizon_projections WHERE ${runFilter()} ORDER BY player_id, target_week`,
+    "horizon_projections");
+  const out = new Map();
+  for (const r of rows) {
+    const k = String(r.player_id);
+    if (!out.has(k)) out.set(k, []);
+    out.get(k).push(r);
+  }
+  return out;
+}
+
 export async function getFreeAgents({ position = "ALL" } = {}) {
   let sql = `SELECT * FROM free_agents WHERE ${runFilter()}`;
   if (position && position !== "ALL") sql += ` AND upper(position) = '${position}'`;

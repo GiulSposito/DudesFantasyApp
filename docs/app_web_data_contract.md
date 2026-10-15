@@ -1247,11 +1247,16 @@ before_expected
 after_expected
 delta_expected
 
+delta_future
+delta_horizon
+
 before_win_probability
 after_win_probability
 delta_win_probability
 
 recommendation_rank
+rank_future
+rank_horizon
 ```
 
 The ranking MUST preserve the decision-engine ordering:
@@ -1261,6 +1266,20 @@ delta_expected DESC
 ```
 
 Do not rerank by win probability.
+
+Three ranking scopes (`docs/horizon_projections.md`), each with its own rank
+(1..n per team) and `top_n`; a row carries any subset of them, NA = not ranked
+in that scope:
+
+```text
+week     W0     delta_expected   recommendation_rank   (bye drops excluded)
+future   W1..W3 delta_future     rank_future           (ESPN weekly projections)
+horizon  W0..W3 delta_horizon    rank_horizon          (= delta_expected + delta_future)
+```
+
+`delta_future` / `delta_horizon` / `rank_future` / `rank_horizon` are NA for
+runs whose snapshot has no horizon (before 2026 week 6). Win probability exists
+for the week scope only.
 
 The source explicitly states that `delta_win_probability` is reported but is not the ranking criterion.
 
@@ -1329,13 +1348,26 @@ my_before_win_probability
 my_after_win_probability
 my_delta_win_probability
 
+my_delta_future
+my_delta_horizon
+their_delta_future
+their_delta_horizon
+
 fairness
 trade_score
 
 partner_is_my_opponent
 
 recommendation_rank
+rank_future
+rank_horizon
 ```
+
+Three ranking scopes, same as waivers (§21): `recommendation_rank` (W0,
+`trade_score` DESC, trades involving a bye player excluded), `rank_future`
+(W1..W3, `my_delta_future`) and `rank_horizon` (W0..W3, `my_delta_horizon`).
+Each scope ranks by `my + min(my, their)` of its own deltas, restarting at 1 per
+`my_team_id`, with its own `top_n`. `fairness` / `trade_score` are W0.
 
 Semantics:
 
@@ -1363,6 +1395,52 @@ partner_is_my_opponent = TRUE
 the frontend MUST show a warning that matchup win-probability impact can be optimistic.
 
 This limitation is explicitly documented in the source.
+
+---
+
+# 22.1 current/horizon_projections.parquet
+
+## Grain
+
+```text
+1 row = 1 player × 1 future target week (W1..W3) as seen from the run
+```
+
+## Source
+
+```text
+espn_db$espn_players_points
+  stat_source_id = 1, stat_split_type_id = 1 (ESPN weekly projection)
+  timestamp = runs.espn_timestamp, week > runs.week
+espn_db$espn_pro_teams.bye_week (is_bye)
+```
+
+Pinned to the run's ESPN snapshot timestamp: the snapshots of the previous weeks
+also wrote rows for the same target weeks. The run's own week (W0) is NOT here -
+it is the consensus forecast (`forecasts.sim_mean`). 0 rows for runs whose
+snapshot predates the horizon.
+
+## Logical PK
+
+```text
+run_id
++ player_id
++ target_week
+```
+
+## Contract
+
+```text
+run_id
+player_id      ESPN id
+target_week    scoring period projected
+horizon        target_week - week (1..3)
+projection     ESPN weekly projected points (0 on a bye week)
+is_bye         the player's NFL team is on bye that week
+```
+
+The UI labels these numbers "S8 · visto da S6", muted, with an "ESPN" badge;
+the week selector never gets an entry for a target week.
 
 ---
 

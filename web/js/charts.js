@@ -67,13 +67,14 @@ export function opportunityScatter(el, players) {
     { xTitle: "Pontos esperados (média simulada)", yTitle: "Risco (desvio da simulação)" });
 }
 
-// Trades — x=my Δ, y=their Δ, bubble size ~ trade_score. Names only on hover.
-export function tradeScatter(el, recs) {
-  const max = Math.max(1, ...recs.map((r) => r.trade_score || 0));
-  scatter(el, recs.map((r) => ({ x: r.my_delta_expected, y: r.their_delta_expected,
-    size: 9 + 18 * ((r.trade_score || 0) / max),
+// Trades — x=my Δ, y=their Δ, bubble size ~ score. Names only on hover.
+// keys: which delta / score columns to plot (the trades page's ranking scope).
+export function tradeScatter(el, recs, { my = "my_delta_expected", their = "their_delta_expected", score = "trade_score" } = {}) {
+  const max = Math.max(1, ...recs.map((r) => r[score] || 0));
+  scatter(el, recs.map((r) => ({ x: r[my], y: r[their],
+    size: 9 + 18 * ((r[score] || 0) / max),
     color: r.partner_is_my_opponent ? WARN : ACCENT,
-    hover: `Recebe ${r.receive_player_name} · cede ${r.give_player_name}<br>${r.other_team_name}<br>você +${r.my_delta_expected?.toFixed(1)} · parceiro +${r.their_delta_expected?.toFixed(1)} · nota ${r.trade_score?.toFixed(1)}` })),
+    hover: `Recebe ${r.receive_player_name} · cede ${r.give_player_name}<br>${r.other_team_name}<br>você ${r[my] >= 0 ? "+" : ""}${r[my]?.toFixed(1)} · parceiro ${r[their] >= 0 ? "+" : ""}${r[their]?.toFixed(1)} · nota ${r[score]?.toFixed(1)}` })),
     { xTitle: "Seu ganho (pontos esperados)", yTitle: "Ganho do parceiro", quadrantAt: { x: 0, y: 0 } });
 }
 

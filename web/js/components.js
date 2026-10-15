@@ -44,6 +44,30 @@ export function badge(text, kind = "accent") {
   return el("span", { class: `badge-pill badge-pill--${kind}` }, text);
 }
 
+// toolbar chips, one active: chips(values, current, onPick, {value: label})
+export function chips(values, current, onPick, labels = {}) {
+  return values.map((v) => el("button", { class: "chip" + (v === current ? " active" : ""),
+    onclick: () => onPick(v) }, labels[v] || v));
+}
+
+// W0..W3 strip: this week's consensus forecast (w0 = sim_mean) + the ESPN weekly
+// projections of the next weeks as seen from this snapshot (muted, "S8 · visto
+// da S6"), bye marked, then the sum. rows = data.getHorizon() entries of one
+// player; null when there are none (runs before the horizon existed).
+export function horizonStrip(w0, rows, week, { w0Bye = false } = {}) {
+  if (!rows?.length) return null;
+  const cell = (wk, v, bye, espn) => el("span", { class: "hz-cell" + (espn ? " hz-cell--espn" : ""),
+    title: espn ? `S${wk} · visto da S${week} · projeção semanal ESPN` : `S${wk} · semana atual · consenso` },
+    el("span", { class: "hz-cell__wk" }, `S${wk}`), bye ? badge("BYE", "q") : el("b", {}, fmt.points(v)));
+  const total = (w0 ?? 0) + rows.reduce((s, r) => s + (r.projection ?? 0), 0);
+  return el("div", { class: "hz-strip" },
+    cell(week, w0, w0Bye, false),
+    ...rows.map((r) => cell(r.target_week, r.projection, r.is_bye, true)),
+    el("span", { class: "hz-cell hz-cell--sum", title: `Soma S${week}–S${rows.at(-1).target_week}` },
+      el("span", { class: "hz-cell__wk" }, "Σ"), el("b", {}, fmt.points(total))),
+    badge("ESPN", "locked"));
+}
+
 // Week's NFL opponent + ESPN rank of that defense vs the player's position
 // ("@LV 17º"). Rank 1 = allows the fewest points (red, tough), 32 = the most
 // (green, easy). long -> full sentence for the drawer. null when unknown.

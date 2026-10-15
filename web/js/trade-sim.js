@@ -6,21 +6,32 @@
 // exact - the flex and the bench absorb the position change. Every lens is
 // measured in the same unit, points per week of the optimal starting lineup:
 //
-//   week    this week's simulated mean (sim_mean)
-//   season  ESPN rest-of-season projection per remaining team game
-//   perf    actual points so far per team game played
+//   week     this week's simulated mean (sim_mean)
+//   horizon  mean over this week + the next ones (W0..W3): each week its own
+//            optimal lineup - W0 on sim_mean, W1..W3 on ESPN's weekly
+//            projection (p.horizon, an array of the future weeks' points)
+//   season   ESPN rest-of-season projection per remaining team game
+//   perf     actual points so far per team game played
 //
-// Player rows come from the rosters / free_agents marts.
+// Player rows come from the rosters / free_agents marts (+ p.horizon attached
+// by the caller from the horizon_projections mart). The horizon lens only
+// exists when some player carries p.horizon.
 
-export const LENSES = ["week", "season", "perf"];
+export const LENSES = ["week", "horizon", "season", "perf"];
 const BENCH_SLOTS = new Set([20, 21]); // BE, IR
 const Z90 = 1.2815516;                 // P90 z-score
 
 const num = (x) => (x == null || Number.isNaN(Number(x)) ? null : Number(x));
 
-// value of one player in one lens (points per week); null-safe, 0 when unknown
+// value of one player in one lens (points per week); null-safe, 0 when unknown.
+// "hz0".."hz2" = one future week (internal: horizon is their per-week optimum)
 export function lensValue(p, lens) {
   if (lens === "week") return num(p.sim_mean) ?? 0;
+  if (lens.startsWith("hz")) return num(p.horizon?.[Number(lens.slice(2))]) ?? 0;
+  if (lens === "horizon") {
+    const h = p.horizon ?? [];
+    return ((num(p.sim_mean) ?? 0) + h.reduce((s, x) => s + (num(x) ?? 0), 0)) / (1 + h.length);
+  }
   if (lens === "season") return p.ros_games > 0 ? (num(p.ros_points) ?? 0) / p.ros_games : 0;
   return p.games_played > 0 ? (num(p.season_points) ?? 0) / p.games_played : 0;
 }
@@ -34,8 +45,10 @@ export function lensSd(p, lens) {
 }
 
 // this week's lineup excludes IR / OUT players, like the decision engine; the
+// future weeks exclude IR only (same as the engine's horizon roster); the
 // season projection already discounts injuries, and perf is history
 function available(p, lens) {
+  if (lens.startsWith("hz") || lens === "horizon") return !p.is_ir;
   if (lens !== "week") return true;
   return !p.is_ir && String(p.injury_status || "").toUpperCase() !== "OUT";
 }
@@ -133,9 +146,17 @@ export function evaluateTrade(ctx) {
   afterTeams.set(me, mineAfter);
   afterTeams.set(them, theirsAfter);
 
-  const stats = (players, lens) => teamStats(optimalLineup(players, ctx.slots, lens), lens);
+  // horizon team value = mean of each week's own optimal lineup (exact: a bye
+  // week is covered by the bench that week), not one lineup on averaged values
+  const nHz = Math.max(0, ...ctx.rosters.map((p) => p.horizon?.length ?? 0));
+  const hzWeeks = ["week", ...Array.from({ length: nHz }, (_, i) => `hz${i}`)];
+  const stats = (players, lens) => {
+    if (lens !== "horizon") return teamStats(optimalLineup(players, ctx.slots, lens), lens);
+    const ws = hzWeeks.map((l) => teamStats(optimalLineup(players, ctx.slots, l), l).mu);
+    return { mu: ws.reduce((s, x) => s + x, 0) / ws.length, sd: lensSd({}, lens), weeks: ws };
+  };
   const lenses = {};
-  for (const lens of LENSES) {
+  for (const lens of ctx.lenses ?? LENSES.filter((l) => l !== "horizon" || nHz > 0)) {
     const repl = replacementLevels(ctx.freeAgents, lens);
     const mb = stats(mine, lens), ma = stats(mineAfter, lens);
     const tb = stats(theirs, lens), ta = stats(theirsAfter, lens);
@@ -208,8 +229,10 @@ export function evaluateTrade(ctx) {
   };
 }
 
-// weighted score in points per week (weights need not sum to 1)
+// weighted score in points per week over the lenses the result has (weights
+// need not sum to 1)
 export function weightedScore(result, weights, side = "me") {
-  const tot = LENSES.reduce((s, l) => s + (weights[l] || 0), 0) || 1;
-  return LENSES.reduce((s, l) => s + (weights[l] || 0) * result.lenses[l][side].delta, 0) / tot;
+  const ls = Object.keys(result.lenses);
+  const tot = ls.reduce((s, l) => s + (weights[l] || 0), 0) || 1;
+  return ls.reduce((s, l) => s + (weights[l] || 0) * result.lenses[l][side].delta, 0) / tot;
 }

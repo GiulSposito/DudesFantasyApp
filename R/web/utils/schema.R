@@ -35,7 +35,8 @@ assert_no_list_cols <- function(df, name = "<mart>") {
 
 # integer columns (exact names) - counts, ranks, seasons/weeks, W-L-T, txns
 .INT_COLS <- c(
-  "season", "week", "rank", "recommendation_rank",
+  "season", "week", "rank", "recommendation_rank", "rank_future", "rank_horizon",
+  "target_week", "horizon",
   "current_projected_rank", "draft_day_projected_rank", "waiver_rank",
   "streak_length", "n_sim", "n_substitutions", "n_sources",
   "residual_pool_n", "residual_pool_level", "seed",
