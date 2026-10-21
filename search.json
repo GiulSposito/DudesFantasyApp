@@ -77,9 +77,9 @@
     "text": "Carregando…"
   },
   {
-    "objectID": "projections.html",
-    "href": "projections.html",
-    "title": "Projeções e fontes",
+    "objectID": "trades.html",
+    "href": "trades.html",
+    "title": "Trocas",
     "section": "",
     "text": "Carregando…"
   },
@@ -91,9 +91,16 @@
     "text": "Carregando…"
   },
   {
-    "objectID": "trades.html",
-    "href": "trades.html",
-    "title": "Trocas",
+    "objectID": "projections.html",
+    "href": "projections.html",
+    "title": "Projeções e fontes",
+    "section": "",
+    "text": "Carregando…"
+  },
+  {
+    "objectID": "backtest.html",
+    "href": "backtest.html",
+    "title": "Acerto do modelo",
     "section": "",
     "text": "Carregando…"
   },
