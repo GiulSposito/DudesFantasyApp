@@ -266,6 +266,15 @@ export async function getMatchupBacktest() {
             ORDER BY week, matchup_id`, "matchup_backtest");
 }
 
+// Draft value of the selected season: every drafted player plus the undrafted
+// ones who scored. [] for bundles built before the draft mart existed.
+export async function getDraft() {
+  const m = await loadManifest();
+  if (!m.datasets.draft) return [];
+  const { season } = state.get();
+  return q(`SELECT * FROM draft WHERE season = ${Number(season)} ORDER BY overall_pick NULLS LAST, points DESC`, "draft");
+}
+
 // Win-probability path of one matchup across the week's snapshots.
 export async function getMatchupHistory(week, matchupId) {
   return q(`SELECT * FROM matchup_history WHERE week = ${Number(week)} AND matchup_id = '${matchupId}'
