@@ -1,16 +1,16 @@
 {
   "schema_version": "1.0.0",
-  "generated_at": "2026-10-21T10:31:58Z",
+  "generated_at": "2026-10-22T21:40:07Z",
   "current": {
-    "run_id": "2026-W07-posWaivers-20261021T072807",
+    "run_id": "2026-W07-preTNF-20261022T183432",
     "season": 2026,
     "week": 7,
-    "tag": "posWaivers",
+    "tag": "preTNF",
     "model_version": "player-mc-v2",
     "n_sim": 10000,
-    "created_at": "2026-10-21T10:31:47Z",
-    "ffa_timestamp": "2026-10-21T10:26:31Z",
-    "espn_timestamp": "2026-10-21T10:24:32Z"
+    "created_at": "2026-10-22T21:39:53Z",
+    "ffa_timestamp": "2026-10-22T21:32:16Z",
+    "espn_timestamp": "2026-10-22T21:30:08Z"
   },
   "datasets": {
     "runs": "runs.parquet",
