@@ -29,10 +29,12 @@ website:
           - { text: "Placar da rodada", href: scoreboard.qmd }
           - { text: "Classificação e força", href: league.qmd }
           - { text: "Rank", href: rank.qmd }
+          - { text: "Draft", href: draft.qmd }
       - text: "Dados"
         menu:
           - { text: "Jogadores",          href: players.qmd }
           - { text: "Projeções e fontes", href: projections.qmd }
+          - { text: "Acerto do modelo",   href: backtest.qmd }
           - { text: "Saúde dos dados",    href: data-health.qmd }
 
 format:

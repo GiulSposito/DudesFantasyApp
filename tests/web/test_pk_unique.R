@@ -26,7 +26,9 @@ pk <- list(
   "projections/source_accuracy.parquet"    = c("season", "data_src", "position"),
   "history/player_weeks.parquet"           = c("season", "week", "ffa_id", "position"),
   "history/league_ranks.parquet"           = c("season", "week", "team_id"),
-  "history/best_lineups.parquet"           = c("season", "week", "kind", "player_id")
+  "history/best_lineups.parquet"           = c("season", "week", "kind", "player_id"),
+  "history/matchup_backtest.parquet"       = c("season", "week", "matchup_id"),
+  "draft/draft.parquet"                    = c("season", "player_id")
 )
 
 for (rel in names(pk)) {

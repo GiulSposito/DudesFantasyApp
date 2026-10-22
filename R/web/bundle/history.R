@@ -1,6 +1,7 @@
 # Web bundle - history/player_points.parquet (contract section 25) +
 # history/consensus_history.parquet (contract section 26) +
-# history/player_weeks.parquet (contract section 26.4).
+# history/player_weeks.parquet (contract section 26.4) +
+# history/matchup_backtest.parquet (contract section 26.5).
 #
 # Multi-season reference marts (no run_id). week == 0 rows are season
 # aggregates, not a real NFL week - the frontend defaults to week > 0.
@@ -111,4 +112,90 @@ build_matchup_history <- function(src, run) {
       home_win_probability, away_win_probability
     ) |>
     arrange(created_at, matchup_id)
+}
+
+# history/matchup_backtest.parquet (contract section 26.5) - one row per
+# matchup of each closed week (one with an ESPN "final" snapshot, see
+# .final_rosters() in best_lineups.R): did the model call the winner? The
+# week's newest run made before its first kickoff (preTNF in practice - tags
+# are free text, the clock is not) projects the starters that actually played
+# (the final lineup); the higher projected total is the predicted winner.
+# Weeks with no pre-kickoff run are left out; a TIE has correct = NA.
+build_matchup_backtest <- function(src, run) {
+  finals <- .final_rosters(src, run)
+  if (nrow(finals) == 0L) return(.empty_matchup_backtest())
+
+  kickoff <- src$espn_db$espn_pro_games |>
+    filter(season == run$season) |>
+    summarise(kickoff = min(game_date), .by = week)
+
+  season_runs <- src$decision_db$simulation_runs |>
+    filter(season == run$season, created_at <= run$created_at)
+
+  pre <- season_runs |>
+    filter(week %in% finals$week) |>
+    inner_join(kickoff, by = "week") |>
+    filter(pmax(espn_timestamp, ffa_timestamp) < kickoff) |>
+    slice_max(created_at, n = 1, with_ties = FALSE, by = week) |>
+    select(week, run_id, tag)
+
+  # ESPN id -> ffa_id as any run of the season bridged it: the mapping is
+  # stable, and the pre-kickoff run alone misses players picked up later
+  bridge <- bind_rows(
+    src$decision_db$current_players |>
+      transmute(run_id, espn_id = as.integer(espn_id), ffa_id = as.integer(ffa_id)),
+    src$decision_db$free_agents |>
+      transmute(run_id, espn_id = as.integer(player_id), ffa_id = as.integer(ffa_id))
+  ) |>
+    filter(run_id %in% season_runs$run_id, !is.na(espn_id), !is.na(ffa_id)) |>
+    distinct(espn_id, .keep_all = TRUE) |>
+    select(espn_id, ffa_id)
+
+  proj <- src$decision_db$player_forecasts |>
+    inner_join(select(pre, run_id), by = "run_id") |>
+    transmute(week = as.integer(week), ffa_id = as.integer(ffa_id), sim_mean) |>
+    distinct(week, ffa_id, .keep_all = TRUE)
+
+  teams <- finals |>
+    filter(is_starter) |>
+    transmute(week = as.integer(week), team_id, espn_id = as.integer(player_id)) |>
+    left_join(bridge, by = "espn_id") |>
+    left_join(proj, by = c("week", "ffa_id")) |>
+    summarise(projected = sum(sim_mean, na.rm = TRUE),
+              n_missing = sum(is.na(sim_mean)), .by = c(week, team_id))
+  side <- function(prefix) {
+    rename_with(teams, \(x) paste0(prefix, x), c(team_id, projected, n_missing))
+  }
+
+  src$espn_db$espn_matchups |>
+    filter(season == run$season) |>
+    inner_join(distinct(finals, week, timestamp), by = c("week", "timestamp")) |>
+    filter(matchup_period_id == week) |>
+    select(season, week, matchup_id, home_team_id, away_team_id,
+           home_points, away_points, winner) |>
+    inner_join(pre, by = "week") |>
+    left_join(side("home_"), by = c("week", "home_team_id")) |>
+    left_join(side("away_"), by = c("week", "away_team_id")) |>
+    transmute(
+      season = as.integer(season), week = as.integer(week),
+      matchup_id = as.integer(matchup_id), run_id, tag,
+      home_team_id = as.integer(home_team_id), away_team_id = as.integer(away_team_id),
+      home_projected, away_projected, home_points, away_points,
+      predicted_winner = case_when(home_projected > away_projected ~ "HOME",
+                                   home_projected < away_projected ~ "AWAY"),
+      winner,
+      correct = if_else(winner %in% c("HOME", "AWAY"), predicted_winner == winner, NA),
+      home_n_missing, away_n_missing
+    ) |>
+    arrange(week, matchup_id)
+}
+
+.empty_matchup_backtest <- function() {
+  tibble(season = integer(), week = integer(), matchup_id = integer(),
+         run_id = character(), tag = character(),
+         home_team_id = integer(), away_team_id = integer(),
+         home_projected = double(), away_projected = double(),
+         home_points = double(), away_points = double(),
+         predicted_winner = character(), winner = character(), correct = logical(),
+         home_n_missing = integer(), away_n_missing = integer())
 }

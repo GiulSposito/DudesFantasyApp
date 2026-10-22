@@ -27,7 +27,9 @@ library(jsonlite)
   "history/player_weeks.parquet"           = c("season", "week", "ffa_id", "position"),
   "history/matchup_history.parquet"        = c("run_id", "matchup_id"),
   "history/league_ranks.parquet"           = c("season", "week", "team_id"),
-  "history/best_lineups.parquet"           = c("season", "week", "kind", "player_id")
+  "history/best_lineups.parquet"           = c("season", "week", "kind", "player_id"),
+  "history/matchup_backtest.parquet"       = c("season", "week", "matchup_id"),
+  "draft/draft.parquet"                    = c("season", "player_id")
 )
 
 .stop <- function(...) stop("validate_web_bundle: ", ..., call. = FALSE)

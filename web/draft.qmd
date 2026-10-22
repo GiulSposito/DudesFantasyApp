@@ -1,0 +1,12 @@
+---
+title: "Draft"
+---
+
+::: {#app}
+Carregando…
+:::
+
+<script type="module">
+import { boot } from "./js/app.js";
+boot("draft");
+</script>

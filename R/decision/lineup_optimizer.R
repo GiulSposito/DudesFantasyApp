@@ -125,8 +125,9 @@ optimize_lineup <- function(candidates, roster_slots) {
   ), nrow = length(row))
 }
 
-# greedy "top-k per position + best flex" - NOT used in production, kept as the
-# test oracle for the single-flex case (provably optimal there).
+# greedy "top-k per position + best flex" - not used by the engine; the test
+# oracle for the single-flex case (provably optimal there) and the league-wide
+# replacement-level fill of the web bundle (R/web/bundle/draft.R).
 .optimize_lineup_greedy <- function(candidates, roster_slots) {
   slots <- .starting_slots(roster_slots)
   cand  <- candidates |> filter(!is.na(ffa_id), !is.na(sim_mean)) |>

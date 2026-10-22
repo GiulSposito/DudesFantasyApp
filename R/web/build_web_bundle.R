@@ -118,6 +118,9 @@ build_web_bundle <- function(run_id = NULL, result = NULL,
   put("matchup_history",    build_matchup_history(src, run),    "history/matchup_history.parquet")
   put("league_ranks",       build_league_ranks(src, run),       "history/league_ranks.parquet")
   put("best_lineups",       build_best_lineups(src, run),       "history/best_lineups.parquet")
+  put("matchup_backtest",   build_matchup_backtest(src, run),   "history/matchup_backtest.parquet")
+
+  put("draft",              build_draft(src, run),              "draft/draft.parquet")
 
   write_manifest(run, paths, privacy, output_dir)
 

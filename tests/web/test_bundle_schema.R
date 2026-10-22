@@ -18,7 +18,8 @@ expected <- c(
   "current/trade_recommendations.parquet", "current/data_health.parquet",
   "projections/source_projections.parquet", "projections/source_accuracy.parquet",
   "history/league_ranks.parquet", "history/best_lineups.parquet",
-  "history/player_weeks.parquet"
+  "history/player_weeks.parquet", "history/matchup_backtest.parquet",
+  "draft/draft.parquet"
 )
 stopifnot(all(file.exists(file.path(FIX, expected))),
           file.exists(file.path(FIX, "manifest.json")))
@@ -134,7 +135,20 @@ need <- list(
                                      "team_id"),
   "history/player_weeks.parquet" = c("season", "week", "ffa_id", "espn_id", "position",
                                      "run_id", "tag", "projection", "sim_mean",
-                                     "p10", "p50", "p90", "actual_points")
+                                     "p10", "p50", "p90", "actual_points"),
+  "history/matchup_backtest.parquet" = c("season", "week", "matchup_id", "run_id", "tag",
+                                         "home_team_id", "away_team_id",
+                                         "home_projected", "away_projected",
+                                         "home_points", "away_points",
+                                         "predicted_winner", "winner", "correct",
+                                         "home_n_missing", "away_n_missing"),
+  "draft/draft.parquet" = c("season", "player_id", "player_name", "position", "nfl_team",
+                            "overall_pick", "round", "round_pick", "draft_team_id",
+                            "owner_team_id", "acquisition_type", "points", "weeks_scored",
+                            "proj_points", "proj_points_to_date", "pos_rank", "proj_pos_rank",
+                            "draft_pos_rank", "pos_rank_delta", "vor", "vor_expected",
+                            "value_over_expected", "proj_vor", "proj_vor_expected",
+                            "decision_value", "luck_value")
 )
 
 for (rel in names(need)) {

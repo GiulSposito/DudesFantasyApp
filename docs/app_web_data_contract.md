@@ -134,7 +134,8 @@ web/
     │   ├── player_points.parquet
     │   ├── consensus_history.parquet
     │   ├── player_weeks.parquet
-    │   └── matchup_history.parquet
+    │   ├── matchup_history.parquet
+    │   └── matchup_backtest.parquet
     │
     └── draft/
         └── draft.parquet
@@ -1834,47 +1835,131 @@ season + week + ffa_id + position
 
 ---
 
+# 26.5 history/matchup_backtest.parquet
+
+## Grain
+
+```text
+1 row = 1 matchup x 1 closed week of the run's season
+```
+
+A week is closed once it has an ESPN snapshot tagged `final` (the same rule as
+`history/best_lineups`, `.final_rosters()` in `R/web/bundle/best_lineups.R`).
+
+## Source
+
+Prediction run: the week's newest `decision_db$simulation_runs` row whose
+`espn_timestamp` and `ffa_timestamp` are both before the week's first kickoff
+(`min(espn_pro_games$game_date)`) - `preTNF` in practice. The clock, not the
+tag, decides: tags are free text, and week 1's `preTNF` was captured after the
+opener. Weeks with no pre-kickoff run are left out.
+
+Lineup: the starters (`is_starter`) of the week's `final` `espn_rosters`
+snapshot - the lineup that actually played, not the one current at prediction
+time. ESPN id -> `ffa_id` through the union of every season run's
+`current_players` / `free_agents` (a stable map; the prediction run alone misses
+players picked up later in the week). Each starter is projected at the
+prediction run's `player_forecasts$sim_mean`; a starter with no forecast counts
+0 and is counted in `*_n_missing`.
+
+Result: `espn_matchups` of the same `final` snapshot (`matchup_period_id ==
+week`). The higher projected total is the predicted winner; draws are not
+persisted, so there is no win probability here. Built by
+`R/web/bundle/history.R::build_matchup_backtest()`. Feeds the "Acerto do
+modelo" page (Dados menu); the frontend reads weeks up to the one selected in
+the header.
+
+## Logical PK
+
+```text
+season + week + matchup_id
+```
+
+## Columns
+
+| column        | meaning |
+| ------------- | ------- |
+| run_id, tag   | prediction run (newest before the week's first kickoff) |
+| home_team_id, away_team_id | fantasy teams |
+| home_projected, away_projected | prediction run's `sim_mean` summed over the final starters |
+| home_points, away_points | real final score (ESPN) |
+| predicted_winner | `HOME` / `AWAY` by the higher projected total; NA on an exact tie |
+| winner        | ESPN result: `HOME` / `AWAY` / `TIE` |
+| correct       | `predicted_winner == winner`; NA when the real result is a `TIE` |
+| home_n_missing, away_n_missing | starters with no forecast in the prediction run (counted as 0) |
+
+---
+
 # 27. draft/draft.parquet
 
 ## Grain
 
 ```text
-1 row = 1 draft selection
+1 row = 1 player of the run's season: every drafted player + the undrafted
+        players who scored (points != 0)
 ```
 
 ## Sources
 
 ```text
-espn_draft
-espn_teams
-espn_players
+espn_draft            picks (overall / round / round pick, team, player)
+espn_players_points   actual season totals (stat_source_id 0, split 0) and
+                      weekly points (split 1); ESPN pre-season projection
+                      (stat_source_id 1, split 0)
+espn_players          name, position, NFL team
+espn_pro_games        first kickoff of the season, NFL games already played
+espn_rosters          current owner + acquisition_type; slot eligibility
+espn_roster_slots     starting slots per team
 ```
 
-`espn_draft` contains overall pick, round, round pick, team and player.
+Built by `R/web/bundle/draft.R::build_draft()`. Feeds the Draft page (Liga menu).
 
-## Contract
+## Rules
+
+- **Points**: season totals from the newest snapshot at or before the run's ESPN
+  timestamp. `weeks_scored` counts weeks with non-zero points (newest snapshot per
+  week), the denominator of the page's points per week.
+- **Pre-season projection**: among the snapshots before the season's first kickoff,
+  the earliest one that covers the most drafted players (the first snapshots of a
+  season carry only a handful of projections) - the projection the ESPN draft room
+  shows. `proj_points_to_date` prorates it by the NFL games the player's team has
+  already played (of 17).
+- **Replacement level**: every team's starting slots filled league-wide (slot counts
+  x number of teams) with `.optimize_lineup_greedy()` (exact with a single flex
+  type); the position's replacement is its best player outside that lineup. Computed
+  separately for actual points and for `proj_points_to_date`.
+- **Value**: `vor = points - replacement`. `vor_expected` = mean `vor` of the picks
+  within +-floor(teams / 2) of the pick (about one round around it).
+  `value_over_expected = vor - vor_expected`.
+- **Decision vs luck**: `decision_value = proj_vor - proj_vor_expected` (a good / bad
+  pick by the projection of then); `luck_value = value_over_expected -
+  decision_value`, so the two sum exactly to `value_over_expected`.
+- **Ranks**: `pos_rank` / `proj_pos_rank` by actual / projected points within the
+  position; `draft_pos_rank` = order taken within the position;
+  `pos_rank_delta = draft_pos_rank - pos_rank` (positive = better than drafted).
+- **Owner**: newest snapshot of the newest week (a `final` snapshot of a past week
+  can be fetched later and carries no `acquisition_type`). A traded or dropped
+  player stays credited to the team that drafted him.
+
+## Logical PK
 
 ```text
-season
-
-overall_pick
-round
-round_pick
-
-team_id
-team_name
-
-player_id
-player_name
-position
-nfl_team
-
-bid_amount
-keeper
-trade_locked
+season + player_id
 ```
 
-Nullable values should follow ESPN source availability.
+## Columns
+
+| column        | meaning |
+| ------------- | ------- |
+| player_id, player_name, position, nfl_team | ESPN player (`position` as ESPN: `D/ST`) |
+| overall_pick, round, round_pick, draft_team_id | the pick; NA when undrafted |
+| owner_team_id, acquisition_type | current fantasy team (NA = free agent) and how it got him (`DRAFT` / `ADD` / `TRADE`) |
+| points, weeks_scored | actual points this season so far, weeks with points |
+| proj_points, proj_points_to_date | ESPN pre-season projection, full season and prorated to date |
+| pos_rank, proj_pos_rank, draft_pos_rank, pos_rank_delta | ranks within the position (see Rules) |
+| vor, vor_expected, value_over_expected | value over replacement, expected for the pick, the difference |
+| proj_vor, proj_vor_expected | the same on the prorated projection |
+| decision_value, luck_value | split of `value_over_expected` (see Rules); NA when undrafted |
 
 ---
 

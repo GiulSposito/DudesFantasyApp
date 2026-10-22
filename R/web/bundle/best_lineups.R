@@ -12,11 +12,18 @@ library(tidyverse)
 if (!exists("optimize_lineup")) source("./R/decision/lineup_optimizer.R")
 if (!exists(".fa_slot_map"))    source("./R/decision/free_agents.R")
 
+# Rosters of each closed week of the run's season: the week's newest ESPN
+# snapshot tagged "final", up to the run's own snapshot. Shared with
+# build_matchup_backtest() (history.R).
+.final_rosters <- function(src, run) {
+  src$espn_db$espn_rosters |>
+    filter(season == run$season, tag == "final", timestamp <= run$espn_timestamp) |>
+    slice_max(timestamp, n = 1, with_ties = TRUE, by = week)
+}
+
 build_best_lineups <- function(src, run) {
-  finals <- src$espn_db$espn_rosters |>
-    filter(season == run$season, tag == "final", timestamp <= run$espn_timestamp)
+  finals <- .final_rosters(src, run)
   if (nrow(finals) == 0L) return(.empty_best_lineups())
-  finals <- finals |> group_by(week) |> filter(timestamp == max(timestamp)) |> ungroup()
 
   slots <- src$espn_db$espn_roster_slots |> filter(season == run$season)
 

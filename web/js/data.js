@@ -255,6 +255,26 @@ export async function getBestLineups() {
             ORDER BY kind, slot_order`, "best_lineups");
 }
 
+// Closed weeks (with a "final" snapshot) of the selected season, up to the
+// selected week: the pre-kickoff projection of the starters that actually
+// played vs the real result. [] for bundles built before the mart existed.
+export async function getMatchupBacktest() {
+  const m = await loadManifest();
+  if (!m.datasets.matchup_backtest) return [];
+  const { season, week } = state.get();
+  return q(`SELECT * FROM matchup_backtest WHERE season = ${Number(season)} AND week <= ${Number(week)}
+            ORDER BY week, matchup_id`, "matchup_backtest");
+}
+
+// Draft value of the selected season: every drafted player plus the undrafted
+// ones who scored. [] for bundles built before the draft mart existed.
+export async function getDraft() {
+  const m = await loadManifest();
+  if (!m.datasets.draft) return [];
+  const { season } = state.get();
+  return q(`SELECT * FROM draft WHERE season = ${Number(season)} ORDER BY overall_pick NULLS LAST, points DESC`, "draft");
+}
+
 // Win-probability path of one matchup across the week's snapshots.
 export async function getMatchupHistory(week, matchupId) {
   return q(`SELECT * FROM matchup_history WHERE week = ${Number(week)} AND matchup_id = '${matchupId}'
