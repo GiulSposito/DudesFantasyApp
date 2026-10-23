@@ -1,16 +1,16 @@
 {
   "schema_version": "1.0.0",
-  "generated_at": "2026-10-22T21:40:07Z",
+  "generated_at": "2026-10-23T13:14:12Z",
   "current": {
-    "run_id": "2026-W07-preTNF-20261022T183432",
+    "run_id": "2026-W07-posTNF-20261023T100624",
     "season": 2026,
     "week": 7,
-    "tag": "preTNF",
+    "tag": "posTNF",
     "model_version": "player-mc-v2",
     "n_sim": 10000,
-    "created_at": "2026-10-22T21:39:53Z",
-    "ffa_timestamp": "2026-10-22T21:32:16Z",
-    "espn_timestamp": "2026-10-22T21:30:08Z"
+    "created_at": "2026-10-23T13:13:57Z",
+    "ffa_timestamp": "2026-10-23T13:03:56Z",
+    "espn_timestamp": "2026-10-23T13:01:53Z"
   },
   "datasets": {
     "runs": "runs.parquet",
