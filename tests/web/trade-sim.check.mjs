@@ -1,7 +1,7 @@
 // Self-check for web/js/trade-sim.js. Run from the project root:
 //   node tests/web/trade-sim.check.mjs
 import assert from "node:assert/strict";
-import { optimalLineup, normCdf, evaluateTrade, weightedScore } from "../../web/js/trade-sim.js";
+import { optimalLineup, normCdf, evaluateTrade, weightedScore, fillSeats } from "../../web/js/trade-sim.js";
 
 // league slots of this league: QB, 2 RB, RB/WR flex, 2 WR, TE (K / D/ST omitted)
 const slots = [
@@ -91,5 +91,13 @@ assert.ok(Math.abs(hzMe.delta - 1.5) < 1e-9, `horizon delta ${hzMe.delta}`);   /
 assert.ok(Math.abs(r2.lenses.horizon.them.delta + 8) < 1e-9);
 // equal weights over the four lenses: (1 + 1.5 + 1 + 1) / 4
 assert.ok(Math.abs(weightedScore(r2, { week: 1, horizon: 1, season: 1, perf: 1 }) - 1.125) < 1e-9);
+
+// fillSeats: ESPN starters on the league seats; an unfilled seat is null (empty slot)
+const seated = fillSeats([
+  { player_id: 1, lineup_slot_id: "0" }, { player_id: 2, lineup_slot_id: "2" },
+  { player_id: 3, lineup_slot_id: "4" }, { player_id: 4, lineup_slot_id: "4" }, { player_id: 5, lineup_slot_id: "6" },
+], slots);
+assert.deepEqual(seated.map((x) => x.slot), ["QB", "RB", "RB", "RB/WR", "WR", "WR", "TE"]);
+assert.deepEqual(seated.map((x) => x.player?.player_id ?? null), [1, 2, null, null, 3, 4, 5]);
 
 console.log("trade-sim: all checks passed");

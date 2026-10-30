@@ -6,6 +6,7 @@ import { el, banner, mount } from "../app.js";
 import { card, sectionLabel, deltaSpan, rankTable, playerRow, playerRowHeader, badge, avatar, rangeBar,
   statusBadge, lockBadge, moveSide, oppLabel, playerLink } from "../components.js";
 import { comparisonMap } from "../compare-map.js";
+import { fillSeats } from "../trade-sim.js";
 
 function comparison(ev) {
   const row = (label, cur, opt, isProb) => ({
@@ -42,6 +43,14 @@ function slotCard(p, rec) {
       el("span", { class: "slot-card__pts", title: p.is_realized ? "pontos reais" : "pontos esperados" }, fmt.points(p.sim_mean)))), p);
 }
 
+function emptySlotCard(seat) {
+  return el("div", { class: "slot-card slot-card--empty", title: "Slot titular sem jogador na ESPN: conta 0 ponto" },
+    el("div", { style: "min-width:0;grid-column:1 / -1" },
+      el("div", { class: "slot-card__slot" }, seat.slot),
+      el("div", { class: "slot-card__name" }, "Slot vazio"),
+      el("div", { class: "slot-card__meta" }, "sem titular na ESPN · 0 pts")));
+}
+
 function playerLine(p, rec) {
   const rb = rec === "in" ? badge("↑ escalar", "start")
     : rec === "out" ? badge("↓ banco", "out") : null;
@@ -50,8 +59,9 @@ function playerLine(p, rec) {
 
 export async function render(root) {
   const { teamId } = state.get();
-  const [roster, ev, recs] = await Promise.all([
+  const [roster, ev, recs, slots] = await Promise.all([
     data.getRoster(teamId), data.getLineupEvaluation(teamId), data.getLineupRecommendations(teamId),
+    data.getRosterSlots(),
   ]);
   if (!ev) { mount(root, banner("empty", "Sem avaliação de escalação para este time nesta captura.")); return; }
 
@@ -60,7 +70,8 @@ export async function render(root) {
   const recOf = (p) => inIds.has(String(p.player_id)) ? "in" : outIds.has(String(p.player_id)) ? "out" : null;
   const byPid = new Map(roster.map((p) => [String(p.player_id), p]));
 
-  const starters = roster.filter((p) => p.is_starter).sort((a, b) => a.lineup_slot_id - b.lineup_slot_id);
+  const seats = fillSeats(roster.filter((p) => p.is_starter), slots);
+  const nStarters = seats.filter((x) => x.player).length;
   const bench = roster.filter((p) => !p.is_starter && !p.is_ir).sort((a, b) => b.sim_mean - a.sim_mean);
   const ir = roster.filter((p) => p.is_ir);
 
@@ -76,8 +87,8 @@ export async function render(root) {
   });
 
   mount(root,
-    sectionLabel(`Titulares (${starters.length})`),
-    el("div", { class: "slot-grid" }, ...starters.map((p) => slotCard(p, recOf(p)))),
+    sectionLabel(`Titulares (${nStarters}/${seats.length})`),
+    el("div", { class: "slot-grid" }, ...seats.map((x) => x.player ? slotCard(x.player, recOf(x.player)) : emptySlotCard(x))),
 
     sectionLabel("Mudanças recomendadas"),
     moves.length ? el("div", { class: "move-grid" }, ...moves)

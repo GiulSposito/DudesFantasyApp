@@ -41,7 +41,8 @@ source("R/pipeline/data_pipeline.R")
 **ingestão → decision engine → web bundle → publish**. Roda, em sequência:
 
 - `importFfa()` --- scrape do `ffanalytics` (~10 sites: CBS, ESPN, FantasyPros, FFToday, FleaFlicker, FanDuel, NFL, RTSports, Walterfootball, ...), calcula as projeções de consenso com `config/score_settings.yml`, e faz upsert em `data/ffa_db.rds` (5 tabelas). Leva alguns minutos. **Falha de site é silenciosa e parcial** --- se uma fonte cair, o scrape continua sem ela; confira a contagem de `data_src` no fim.
-- `importEspn()` --- um snapshot combinado da liga + o pool de jogadores via API ESPN, upsert em `data/espn_db.rds` (15 tabelas, incl. times NFL + calendário de jogos via `proTeamSchedules_wl` + rank de defesa vs posição, `espn_pos_vs_opponent`).
+  `config/score_settings.yml` precisa ter `kick$fg_0039: 3.0` (FG de 0–39 jardas): FFToday / FleaFlicker publicam só o total de FG e a ESPN só 0–39 / 40–49 / 50+; `.impute_k_fg()` (`R/api/ffa_projection.R`) joga esses FG em `fg_0039`. Sem a regra, o K projeta ~45% abaixo do real.
+- `importEspn()` --- um snapshot combinado da liga + o pool de jogadores via API ESPN, upsert em `data/espn_db.rds` (15 tabelas, incl. times NFL + calendário de jogos via `proTeamSchedules_wl` + rank de defesa vs posição, `espn_pos_vs_opponent`). **Para com erro se `.week` não for o scoring period atual da ESPN** (`status$latestScoringPeriod`): com a semana errada a ESPN devolve, sem avisar, o lineup histórico daquela semana. A exceção é a tag `"final"`, que fecha uma semana já passada.
 - `run_decision_pipeline(.season, .week, .tag)` --- passo 4 abaixo; devolve `res`.
 - `build_web_bundle(result = res, privacy = "public")` --- passo 7 abaixo.
 - `quarto publish gh-pages web` --- render + push para `origin/gh-pages`. Pule com `.publish <- FALSE` no bloco de parâmetros.

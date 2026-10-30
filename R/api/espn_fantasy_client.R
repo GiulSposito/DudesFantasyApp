@@ -905,7 +905,9 @@ espn_scoring_rules <- function(client = espn_client()) {
     season = .espn_int(raw$seasonId),
     league_name = .espn_chr(s$name),
     size = .espn_int(s$size),
-    current_scoring_period = .espn_int(raw$scoringPeriodId %||% status$currentScoringPeriod$id),
+    # raw$scoringPeriodId only echoes the requested ?scoringPeriodId=; the league's
+    # actual current period is status$latestScoringPeriod
+    current_scoring_period = .espn_int(status$latestScoringPeriod %||% raw$scoringPeriodId),
     current_matchup_period = .espn_int(status$currentMatchupPeriod),
     final_scoring_period = .espn_int(status$finalScoringPeriod),
     draft_date = .espn_date_ms(d$date),

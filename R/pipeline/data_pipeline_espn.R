@@ -77,6 +77,21 @@ dm_draw_png <- function(dm, ..., file, width = 2400) {
   df
 }
 
+# fail fast when the run week is not ESPN's current scoring period: ESPN answers
+# a stale .week with that week's historical lineup, silently. "final" runs are
+# taken after ESPN has rolled over to the next period, so they may lag by one.
+.espn_require_current_week <- function(snap, .week, .tag) {
+  latest <- snap$raw$status$latestScoringPeriod
+  if (is.null(latest) || identical(.tag, "final") || as.integer(latest) == as.integer(.week)) {
+    return(invisible(TRUE))
+  }
+  stop(glue::glue(
+    "ESPN's current scoring period is {latest} but .week = {.week} (tag '{.tag}'): ",
+    "the snapshot would carry week {.week}'s lineups, not the current ones. ",
+    "Fix .week in R/pipeline/data_pipeline.R (or use tag 'final' to close a past week)."
+  ), call. = FALSE)
+}
+
 # ---- getters ---------------------------------------------------------------
 
 # one combined league request (mSettings, mStatus, mTeam, mRoster, mStandings,
@@ -341,6 +356,7 @@ importEspn <- function(config, .season, .week, .tag, .timestamp) {
   
   cli::cli_alert_info(glue("Importing ESPN data s{.season}-w{.week}:{.tag}..."))
   snap    <- getEspnSnapshot(client, .season, .week, .tag, .timestamp)
+  .espn_require_current_week(snap, .week, .tag)
   # W1..W3 weekly projections (docs/horizon_projections.md), capped at season end
   hw <- .week + 1:3
   hw <- hw[hw <= coalesce(snap$league$final_scoring_period[1], 17L)]

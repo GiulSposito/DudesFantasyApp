@@ -35,11 +35,13 @@ load_sources <- function(result = NULL) {
   )
 }
 
-# 1-row list describing the resolved run.
+# 1-row list describing the resolved run. Default = the newest run of the latest
+# season + week, NOT the newest run overall: re-processing an older week must not
+# turn that week into the site's "current" one.
 resolve_run <- function(decision_db, run_id = NULL) {
   runs <- decision_db$simulation_runs
   row <- if (is.null(run_id)) {
-    runs |> slice_max(created_at, n = 1, with_ties = FALSE)
+    runs |> arrange(desc(season), desc(week), desc(created_at)) |> slice(1)
   } else {
     hit <- runs |> filter(run_id == !!run_id)
     if (nrow(hit) == 0L) stop("resolve_run: run_id not found: ", run_id, call. = FALSE)
@@ -75,11 +77,15 @@ build_web_bundle <- function(run_id = NULL, result = NULL,
   paths <- list()
   put <- function(name, df, rel) paths[[name]] <<- write_mart(df, rel)
 
-  # one run per season + week - the newest, up to the resolved run - so the
-  # site's snapshot selector can switch weeks. Per-run marts stack these.
+  # one run per season + week - the newest of each week up to the resolved run's
+  # week - so the site's snapshot selector can switch weeks. Weeks, not creation
+  # time: a re-run of an older week made after the resolved run still replaces
+  # that week. Per-run marts stack these.
   # ponytail: bundle grows ~250 KB per week; per-run files if it ever matters
   week_runs <- src$decision_db$simulation_runs |>
-    filter(created_at <= run$created_at) |>
+    filter(season < run$season | (season == run$season & week <= run$week)) |>
+    # the resolved run's own week: nothing newer than the resolved run itself
+    filter(season < run$season | week < run$week | created_at <= run$created_at) |>
     group_by(season, week) |>
     slice_max(created_at, n = 1, with_ties = FALSE) |>
     ungroup()

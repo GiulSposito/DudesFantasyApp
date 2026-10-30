@@ -4,6 +4,7 @@ import * as state from "../state.js";
 import * as fmt from "../format.js";
 import { el, banner, mount, team } from "../app.js";
 import { card, sectionLabel, statRow, statTile, bar, avatar, teamLogo, teamBadge, winBar, moveSide, playerLink } from "../components.js";
+import { fillSeats } from "../trade-sim.js";
 
 function leagueBoard(matchups, teamId) {
   const isMine = (m) => String(m.home_team_id) === String(teamId) || String(m.away_team_id) === String(teamId);
@@ -31,7 +32,7 @@ function actionCard(kind, inP, outP, inLabel, outLabel, impact, fc) {
 
 export async function render(root) {
   const { teamId } = state.get();
-  const [my, ev, waivers, trades, lineupRecs, matchups, roster] = await Promise.all([
+  const [my, ev, waivers, trades, lineupRecs, matchups, roster, slots] = await Promise.all([
     data.getMatchupForTeam(teamId),
     data.getLineupEvaluation(teamId),
     data.getWaiverRecommendations(teamId),
@@ -39,6 +40,7 @@ export async function render(root) {
     data.getLineupRecommendations(teamId),
     data.getMatchups(),
     data.getRoster(teamId),
+    data.getRosterSlots(),
   ]);
 
   if (!my) { mount(root, banner("empty", "Nenhum confronto para esta captura.")); return; }
@@ -75,8 +77,12 @@ export async function render(root) {
     el("div", { class: "note-inline", style: "text-align:center" },
       `Chance de vitória em ${fmt.points(my.n_sim, 0)} simulações. Números embaixo dos placares: faixa P10–P90.`));
 
-  const starters = roster.filter((p) => p.is_starter).sort((a, b) => a.lineup_slot_id - b.lineup_slot_id);
-  const strip = el("div", { class: "starter-strip" }, ...starters.map((p) => playerLink(
+  const seats = fillSeats(roster.filter((p) => p.is_starter), slots);
+  const emptyChip = (seat) => el("div", { class: "starter-chip starter-chip--empty", title: `${seat.slot} sem titular na ESPN: conta 0 ponto` },
+    el("div", { class: "starter-chip__name" }, "vazio"),
+    el("div", { class: "starter-chip__pts" }, fmt.points(0)),
+    el("div", { class: "stat__sub" }, seat.slot));
+  const strip = el("div", { class: "starter-strip" }, ...seats.map(({ player: p, ...seat }) => !p ? emptyChip(seat) : playerLink(
     el("div", { class: "starter-chip", title: `${p.player_name} · ${p.lineup_slot}` },
       avatar(p, { size: 48 }),
       el("div", { class: "starter-chip__name" }, p.player_name.split(" ").slice(-1)[0]),
