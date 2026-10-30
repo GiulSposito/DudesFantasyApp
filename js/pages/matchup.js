@@ -5,21 +5,10 @@ import * as fmt from "../format.js";
 import { el, banner, mount, team } from "../app.js";
 import { card, sectionLabel, avatar, teamLogo, winBar, rangeBar, lockBadge, statusBadge, oppLabel, playerLink } from "../components.js";
 import { winProbLine } from "../charts.js";
+import { fillSeats } from "../trade-sim.js";
 
 let selectedId = null;
 let selectedFor = null;   // team|run the selection was made under
-
-// starters of one team grouped by slot, best first inside a slot
-function slotted(roster) {
-  const bySlot = new Map();
-  for (const p of roster.filter((r) => r.is_starter)) {
-    const k = p.lineup_slot_id;
-    if (!bySlot.has(k)) bySlot.set(k, []);
-    bySlot.get(k).push(p);
-  }
-  for (const v of bySlot.values()) v.sort((a, b) => b.sim_mean - a.sim_mean);
-  return bySlot;
-}
 
 function duelSide(p, cls, win) {
   if (!p) return el("div", { class: `duel__side ${cls}` }, el("span", { class: "stat__sub" }, "vazio"));
@@ -35,23 +24,22 @@ function duelSide(p, cls, win) {
     el("div", { class: "duel__pts " + (win == null ? "" : win ? "duel__pts--win" : "duel__pts--lose") }, fmt.points(p.sim_mean))), p);
 }
 
-function duel(home, away, m) {
-  const h = slotted(home), a = slotted(away);
-  const slotIds = [...new Set([...h.keys(), ...a.keys()])].sort((x, y) => x - y);
+// both lineups seat by seat (league slot rules), best first inside a slot; an
+// empty ESPN slot shows as "vazio" on its side
+function duel(home, away, m, slots) {
+  const h = fillSeats(home.filter((r) => r.is_starter), slots);
+  const a = fillSeats(away.filter((r) => r.is_starter), slots);
   const rows = [];
-  for (const sid of slotIds) {
-    const hs = h.get(sid) || [], as = a.get(sid) || [];
-    for (let i = 0; i < Math.max(hs.length, as.length); i++) {
-      const hp = hs[i], ap = as[i];
-      const edge = (hp?.sim_mean ?? 0) - (ap?.sim_mean ?? 0);
-      const win = hp && ap ? edge > 0 : null;
-      rows.push(el("div", { class: "duel__row" },
-        duelSide(hp, "duel__side--home", win),
-        el("div", { class: "duel__slot" },
-          el("span", { class: "pos-badge " + fmt.pos((hp || ap).position).toLowerCase() }, (hp || ap).lineup_slot),
-          el("span", { class: "duel__edge" }, (edge >= 0 ? "+" : "−") + fmt.points(Math.abs(edge)))),
-        duelSide(ap, "duel__side--away", win == null ? null : !win)));
-    }
+  for (let i = 0; i < Math.max(h.length, a.length); i++) {
+    const seat = h[i] || a[i], hp = h[i]?.player, ap = a[i]?.player;
+    const edge = (hp?.sim_mean ?? 0) - (ap?.sim_mean ?? 0);
+    const win = hp && ap ? edge > 0 : null;
+    rows.push(el("div", { class: "duel__row" },
+      duelSide(hp, "duel__side--home", win),
+      el("div", { class: "duel__slot" },
+        el("span", { class: "pos-badge " + fmt.pos((hp || ap)?.position ?? seat.slot).toLowerCase() }, seat.slot),
+        el("span", { class: "duel__edge" }, (edge >= 0 ? "+" : "−") + fmt.points(Math.abs(edge)))),
+      duelSide(ap, "duel__side--away", win == null ? null : !win)));
   }
   return el("div", { class: "duel" },
     el("div", { class: "duel__row duel__row--head" },
@@ -79,9 +67,10 @@ export async function render(root) {
     selectedId = (mine || matchups[0]).matchup_id;
   }
   const m = matchups.find((x) => String(x.matchup_id) === String(selectedId));
-  const [home, away, hist] = await Promise.all([
+  const [home, away, hist, slots] = await Promise.all([
     data.getRoster(m.home_team_id), data.getRoster(m.away_team_id),
     data.getMatchupHistory(m.week, m.matchup_id).catch(() => []),
+    data.getRosterSlots(),
   ]);
 
   const switcher = el("select", { class: "field", style: "width:auto;max-width:100%", "aria-label": "Confronto",
@@ -107,7 +96,7 @@ export async function render(root) {
       m.tie_probability > 0.001 ? el("div", { class: "note-inline", style: "text-align:center" }, `empate ${fmt.prob(m.tie_probability, 1)}`) : null),
 
     sectionLabel("Duelo posição a posição"),
-    card(duel(home, away, m),
+    card(duel(home, away, m, slots),
       el("div", { class: "note-inline" }, "Número grande: pontos esperados (ou reais, depois que o jogo trava). Barra: faixa P10–P90 com a mediana. Embaixo do slot: vantagem do time da esquerda.")),
 
     hist.length > 1 ? sectionLabel("Como a chance de vitória mudou nesta semana") : null,

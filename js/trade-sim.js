@@ -72,6 +72,19 @@ export function startingSeats(slots) {
     .flatMap((s) => Array.from({ length: s.slot_count }, () => ({ slot_id: Number(s.lineup_slot_id), slot: s.slot_label })));
 }
 
+// ESPN starters placed on the league's starting seats, in slot order. A seat
+// nobody fills comes back with player = null: an empty slot in the ESPN lineup,
+// which scores 0 (the engine sums only the starters ESPN reports).
+export function fillSeats(starters, slots) {
+  const left = [...starters];
+  const seats = startingSeats(slots).sort((a, b) => a.slot_id - b.slot_id).map((seat) => {
+    const i = left.findIndex((p) => Number(p.lineup_slot_id) === seat.slot_id);
+    return { ...seat, player: i < 0 ? null : left.splice(i, 1)[0] };
+  });
+  // a starter in a slot the league no longer has: keep it visible
+  return [...seats, ...left.map((p) => ({ slot_id: Number(p.lineup_slot_id), slot: p.lineup_slot, player: p }))];
+}
+
 // Optimal starting lineup by lens value. Greedy, most restrictive seat first.
 // ponytail: optimal for nested eligibility (QB/RB/WR/TE + an RB/WR flex, this
 // league); a superflex / OP league would need the R branch-and-bound

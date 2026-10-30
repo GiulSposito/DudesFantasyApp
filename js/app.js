@@ -68,7 +68,10 @@ async function renderHeader() {
     el("div", { class: "ctx" },
       el("span", { class: "ctx__week" }, `Semana ${_run.week} · ${_run.season}`),
       el("span", { class: "ctx__tag", title: "Momento da semana em que os dados foram capturados" }, _run.tag),
-      el("span", {}, `atualizado ${fmt.since(_run.created_ms)}`)),
+      // the ESPN capture time is what the rosters reflect - lineup moves made in
+      // the ESPN app after it only show up on the next run
+      el("span", { title: `Rosters e escalações como estavam na ESPN em ${fmt.ts(_run.espn_ms ?? _run.created_ms)}` },
+        `captura ESPN ${fmt.since(_run.espn_ms ?? _run.created_ms)}`)),
     el("span", { class: "spring" }),
     teamSel, runSel,
   );
@@ -95,7 +98,8 @@ export async function boot(pageName) {
   state.init(manifest, mine ? mine.team_id : (_teams[0]?.team_id ?? null), _runs);
   const pickRun = () => {
     const c = manifest.current;
-    _run = _runs.find((r) => r.run_id === state.get().runId) || { ...c, created_ms: manifest.generated_at };
+    _run = _runs.find((r) => r.run_id === state.get().runId)
+      || { ...c, created_ms: manifest.generated_at, espn_ms: c.espn_timestamp };
   };
   pickRun();
   setPlayerTeams(await data.getPlayerTeams().catch(() => new Map()));

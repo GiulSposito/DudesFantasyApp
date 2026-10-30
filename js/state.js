@@ -16,9 +16,14 @@ function writeStored() {
 function writeUrl() {
   const u = new URL(window.location.href);
   const p = u.searchParams;
-  p.set("season", _state.season);
-  p.set("week", _state.week);
-  p.set("run", _state.runId);
+  // only an explicitly picked older snapshot is pinned in the URL: a link to the
+  // current one must follow the next publish, not reopen this week forever
+  for (const k of ["season", "week", "run"]) p.delete(k);
+  if (_state.runId !== _state.bundle) {
+    p.set("season", _state.season);
+    p.set("week", _state.week);
+    p.set("run", _state.runId);
+  }
   if (_state.teamId != null) p.set("team", _state.teamId); else p.delete("team");
   if (_state.position && _state.position !== "ALL") p.set("position", _state.position);
   else p.delete("position");

@@ -260,6 +260,14 @@ function hzRows(t, fc, ctx) {
     row("Recebe", t.receive_player_id, t.receive_ffa_id), row("Cede", t.give_player_id, t.give_ffa_id));
 }
 
+// the partner's lineup delta only sees his starters: 0 = his starters don't
+// change, not "he loses nothing" - the depth he gives up is his bench delta
+function benchLine(t, ctx) {
+  if (t.their_bench_delta == null) return null;
+  return el("div", { class: "stat__sub", title: "Soma dos pontos esperados do banco dele (fora do lineup ótimo), depois menos antes. 0 no ganho dele = os titulares dele não mudam." },
+    `banco dele ${scopeWeeks("week", ctx)} `, deltaSpan(t.their_bench_delta, "pts"));
+}
+
 function detail(t, ctx) {
   const hzLine = (my) => t[my ? "my_delta_future" : "their_delta_future"] == null ? null
     : el("div", { class: "stat__sub" },
@@ -278,6 +286,7 @@ function detail(t, ctx) {
     hzLine(true),
     sectionLabel("Parceiro"),
     el("div", {}, `${scopeWeeks("week", ctx)} pontos `, deltaSpan(t.their_delta_expected, "pts")),
+    benchLine(t, ctx),
     hzLine(false),
     hzRows(t, ctx.fc, ctx),
     sectionLabel("Equilíbrio"),
@@ -303,7 +312,8 @@ function tradeCard(t, ctx, max, top) {
     hzRows(t, fc, ctx),
     el("div", {},
       gainBar("Seu ganho", t._my, max),
-      gainBar("Ganho dele", t._their, max)));
+      gainBar("Ganho dele", t._their, max),
+      benchLine(t, ctx)));
 }
 
 export async function render(root) {
@@ -363,6 +373,7 @@ export async function render(root) {
       { key: "give_player_name", label: "Cede", fmt: (v, r) => el("span", {}, posBadge(r.give_position), " ", v) },
       { key: "_my", label: "Seu Δ", num: true, fmt: (v) => deltaSpan(v, "pts") },
       { key: "_their", label: "Δ dele", num: true, fmt: (v) => deltaSpan(v, "pts") },
+      { key: "their_bench_delta", label: "Δ banco dele", num: true, fmt: (v) => v == null ? "–" : deltaSpan(v, "pts") },
       { key: "_score", label: "Nota", num: true, fmt: (v) => fmt.points(v, 1) },
     ], { onRow: (t) => detail(t, ctx) }),
   );

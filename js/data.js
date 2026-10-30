@@ -47,7 +47,9 @@ export async function register(name) {
   const rel = m.datasets[name];
   if (!rel) throw new Error(`Unknown dataset "${name}"`);
   await db();
-  const url = new URL(`./data/${rel}`, window.location.href).href;
+  // ?v= busts the HTTP cache (GitHub Pages: max-age=600) so a fresh publish never
+  // pairs the new manifest with an old Parquet
+  const url = new URL(`./data/${rel}?v=${encodeURIComponent(m.generated_at)}`, window.location.href).href;
   const file = `${name}.parquet`;
   await (await db()).registerFileURL(file, url, duckdb.DuckDBDataProtocol.HTTP, false);
   await _conn.query(`CREATE OR REPLACE VIEW ${name} AS SELECT * FROM read_parquet('${file}')`);
@@ -76,8 +78,9 @@ export const runFilter = () => `run_id = '${String(state.get().runId).replace(/'
 // One row per season + week (the bundle keeps only that week's newest run),
 // newest first.
 export async function getRuns() {
-  // created_ms: epoch ms, so the UI never has to decode an arrow timestamp
-  return q("SELECT *, epoch_ms(created_at) AS created_ms FROM runs ORDER BY season DESC, week DESC", "runs");
+  // created_ms / espn_ms: epoch ms, so the UI never has to decode an arrow timestamp
+  return q(`SELECT *, epoch_ms(created_at) AS created_ms, epoch_ms(espn_timestamp) AS espn_ms
+            FROM runs ORDER BY season DESC, week DESC`, "runs");
 }
 
 export async function getTeams() {
