@@ -14,7 +14,7 @@ build_free_agents <- function(src, run) {
 
   fc <- src$decision_db$player_forecasts |>
     filter(run_id == run$run_id) |>
-    select(ffa_id, pos, sim_sd, p25, p75,
+    select(ffa_id, sim_sd, p25, p75,
            prob_gt_10, prob_gt_15, prob_gt_20, prob_gt_25, n_sources)
 
   nfl <- src$espn_db$espn_players |>
@@ -22,7 +22,7 @@ build_free_agents <- function(src, run) {
     transmute(player_id, nfl_team = pro_team)
 
   fa |>
-    left_join(fc, by = c("ffa_id", "pos")) |>
+    left_join(fc, by = "ffa_id") |>   # ffa_id unique per run
     left_join(nfl, by = "player_id") |>
     mutate(pos_key = opp_pos_key(position)) |>
     left_join(run_opponents(src, run), by = c("nfl_team", "pos_key")) |>

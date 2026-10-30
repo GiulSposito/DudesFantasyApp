@@ -68,21 +68,35 @@ select_espn_snapshot <- function(espn_db, season, week, tag) {
   # lineup_locked may be absent on snapshots scraped before it was persisted
   if (!"lineup_locked" %in% names(rosters)) rosters$lineup_locked <- NA
 
-  # realized points: one row per player with a settled (stat_source_id == 0)
-  # actual for the week, plus whether their game has locked (spec: realized-points
-  # folding). Empty tibble if the points table has no matching rows.
+  # realized points: one row per player with an (stat_source_id == 0) actual for
+  # the week in THIS snapshot (ts), plus whether their game has locked (spec:
+  # realized-points folding). A locked player's points are final only once his
+  # game is over - mid-game they are partial, and folding them in would fix him
+  # at a too-low value - so actual_points is NA until then: he stays locked
+  # (pinned / unmovable) but keeps his projected distribution.
+  # ponytail: "over" = kickoff + 4h (ESPN's statsOfficial lags by days); a
+  # delayed game folds early - use the live game status if that ever bites.
+  # Empty tibble if the points table has no matching rows.
   realized <- espn_db$espn_players_points |>
-    filter(season == !!season, week == !!week, stat_source_id == 0L)
+    filter(season == !!season, week == !!week, stat_source_id == 0L, timestamp == ts)
   if (!"lineup_locked" %in% colnames(realized)) realized$lineup_locked <- NA
+  kickoff <- if ("espn_pro_games" %in% names(espn_db)) {
+    g <- espn_db$espn_pro_games |> filter(season == !!season, week == !!week)
+    bind_rows(transmute(g, pro_team_id = as.integer(home_pro_team_id), kickoff = game_date),
+              transmute(g, pro_team_id = as.integer(away_pro_team_id), kickoff = game_date))
+  } else tibble(pro_team_id = integer(), kickoff = as.POSIXct(character()))
   realized <- if (nrow(realized) == 0L) {
     tibble(player_id = integer(), actual_points = double(), is_locked = logical())
   } else {
+    if (!"pro_team_id" %in% colnames(realized)) realized$pro_team_id <- NA_integer_
     realized |>
-      filter(timestamp == max(timestamp)) |>
-      # week/tag already scope to one scoring period => one row per player
+      # one scoring period + one snapshot => one row per player
       distinct(player_id, .keep_all = TRUE) |>
+      mutate(pro_team_id = as.integer(pro_team_id)) |>
+      left_join(distinct(kickoff, pro_team_id, .keep_all = TRUE), by = "pro_team_id") |>
       transmute(player_id     = as.integer(player_id),
-                actual_points = fantasy_points,
+                actual_points = if_else(!is.na(kickoff) & ts < kickoff + 4 * 3600,
+                                        NA_real_, fantasy_points),
                 is_locked     = coalesce(as.logical(lineup_locked), FALSE))
   }
 

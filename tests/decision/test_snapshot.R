@@ -71,6 +71,25 @@ stopifnot(
   identical(es$horizon$projection, c(3, 0, 0)),          # ts3 only; NA -> 0
   identical(es$bye_teams, character())
 )
+# realized points: this snapshot's (ts3) actuals only; a locked player whose game
+# kicked off < 4h before the snapshot keeps NA points (partial, not final)
+act <- function(ts, pid, team, val) tibble(season = 2025L, week = 6L, tag = "preview",
+  timestamp = ts, player_id = pid, pro_team_id = team, stat_source_id = 0L,
+  stat_split_type_id = 1L, fantasy_points = val, lineup_locked = TRUE)
+db_r <- espn_db
+db_r$espn_players_points <- bind_rows(
+  act(t2, 1L, 1L, 77),                                    # older snapshot: ignored
+  act(t3, 2L, 1L, 12), act(t3, 3L, 2L, 4)                 # team 1 game over, team 2 live
+)
+db_r$espn_pro_games <- tibble(season = 2025L, week = 6L,
+  game_date = c(t3 - 5 * 3600, t3 - 3600), home_pro_team_id = c(1L, 2L), away_pro_team_id = c(3L, 4L))
+rz <- select_espn_snapshot(db_r, 2025, 6, "preview")$realized |> arrange(player_id)
+stopifnot(
+  identical(rz$player_id, 2:3),
+  identical(rz$actual_points, c(12, NA)),
+  all(rz$is_locked)
+)
+
 # a snapshot taken before the horizon existed -> 0 rows, not an error
 espn_db$espn_players_points <- pts(t3, 6L, 6L, 99)
 stopifnot(nrow(select_espn_snapshot(espn_db, 2025, 6, "preview")$horizon) == 0L)

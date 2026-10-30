@@ -17,7 +17,9 @@ build_source_projections <- function(src, run) {
     distinct(ffa_id, .keep_all = TRUE)
 
   src$ffa_db$ffa_proj_source_points |>
-    filter(season == run$season, week == run$week, tag == run$tag,
+    # timestamp alone pins the scrape: select_ffa_snapshot() picks it ignoring
+    # the tag, so a tag filter could empty this mart
+    filter(season == run$season, week == run$week,
            timestamp == run$ffa_timestamp) |>
     mutate(ffa_id = suppressWarnings(as.integer(id))) |>
     filter(!is.na(ffa_id)) |>

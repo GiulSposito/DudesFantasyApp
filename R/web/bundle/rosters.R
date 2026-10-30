@@ -22,7 +22,7 @@ build_rosters <- function(src, run) {
     filter(run_id == run$run_id)
   if (!"is_realized" %in% names(fc)) fc$is_realized <- FALSE
   fc <- fc |>
-    select(ffa_id, pos, p25, p75,
+    select(ffa_id, p25, p75,
            prob_gt_10, prob_gt_15, prob_gt_20, prob_gt_25,
            is_realized)
 
@@ -30,7 +30,8 @@ build_rosters <- function(src, run) {
     filter(season == run$season) |> select(team_id, team_name)
 
   base <- cp |>
-    left_join(fc, by = c("ffa_id", "pos")) |>
+    # ffa_id is unique per run; ESPN's position can differ from the consensus pos
+    left_join(fc, by = "ffa_id") |>
     left_join(teams, by = "team_id")
 
   slots <- src$espn_db$espn_roster_slots |> filter(season == run$season)

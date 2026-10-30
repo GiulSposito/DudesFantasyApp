@@ -27,7 +27,8 @@ build_standings <- function(src, run) {
       run_id = run$run_id,
       streak = paste0(substr(streak_type, 1, 1), streak_length)
     ) |>
-    arrange(desc(wins), desc(points_for)) |>
+    # win % (a tie counts half), then points for - same order as league_ranks
+    arrange(desc(win_pct), desc(points_for)) |>
     mutate(rank = row_number()) |>
     transmute(
       run_id, season, week, tag,
