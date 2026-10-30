@@ -3,10 +3,16 @@
 # Turn a point projection into a predictive distribution by resampling the errors
 # the consensus has actually made historically (spec 8-11, 46):
 #
-#     points_sim = projection + sample(historical_consensus_residual, n_sim, replace = TRUE)
+#     points_sim = projection + sample(residual - mean(residual), n_sim, replace = TRUE)
 #
 # NOT Normal(projection, source_sd). source_sd is source disagreement; the residual
-# pool is real projection error.
+# pool is real projection error. The pool is centred: it carries the SHAPE of the
+# error (spread, skew) but not its mean. The 2020-2025 pool averages +0.9..+1.7
+# pts in the relevant WR/TE/RB ranges, a bias that does not hold for the current
+# ESPN league (2026 W1-7 backtest: sim_mean ran 1.2-2.0 pts/player above actual,
+# the raw consensus 0.3-0.7; P10-P90 covered 50-65% for TE/WR). Draws are floored
+# at the lowest actual the position ever scored in the history, so centring a
+# right-skewed pool can't push bench-level players into impossible negatives.
 #
 # set.seed() is called ONCE by run_decision_pipeline(), never inside these functions.
 
@@ -64,6 +70,8 @@ simulate_players <- function(consensus, history, n_sim = 10000,
   history <- history |>
     filter(!is.na(residual), !is.na(projection)) |>
     select(pos, projection, coverage_class, residual)
+  # lowest weekly score each position ever had (actual = projection + residual)
+  floor_of <- tapply(history$projection + history$residual, history$pos, min)
 
   sims <- consensus |>
     mutate(
@@ -71,7 +79,9 @@ simulate_players <- function(consensus, history, n_sim = 10000,
         list(pos, projection, coverage_class),
         function(.pos, .proj, .cov) {
           pool  <- get_residual_pool(.pos, .proj, .cov, history, k, min_pool_size)
-          draws <- .proj + sample(pool, n_sim, replace = TRUE)
+          draws <- .proj + sample(pool - mean(pool), n_sim, replace = TRUE)
+          fl    <- floor_of[.pos]
+          if (!is.na(fl)) draws <- pmax(draws, min(fl, .proj))
           list(draws = draws,
                level = attr(pool, "fallback_level"),
                pool_n = attr(pool, "pool_n"))

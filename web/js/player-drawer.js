@@ -99,7 +99,6 @@ async function detail(row, teamOf) {
     kv("Pontos na temporada", fmt.points(row.season_points)),
     kv("Projeção (consenso)", fmt.points(row.projection)),
     kv("Média simulada", fmt.points(row.sim_mean)),
-    kv("Viés histórico", fmt.points(row.historical_bias, 1)),
     kv("Desvio da simulação", fmt.points(row.sim_sd)),
     sectionLabel("Quantis"),
     kv("P05 / P10 / P25", `${fmt.points(row.p05)} / ${fmt.points(row.p10)} / ${fmt.points(row.p25)}`),

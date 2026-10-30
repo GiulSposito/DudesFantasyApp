@@ -516,11 +516,21 @@ Para cada jogador:
 simulated_points <-
   current_projection +
   sample(
-    residual_pool,
+    residual_pool - mean(residual_pool),
     size = n_sim,
     replace = TRUE
   )
+simulated_points <- pmax(simulated_points, min(floor_pos, current_projection))
 ```
+
+O pool é **centrado** (out/2026): ele traz a forma do erro (dispersão,
+assimetria), não a média. O pool de 2020–2025 tem média de +0,9 a +1,7 pts nas
+faixas relevantes de WR/TE/RB, viés que não vale para a liga ESPN atual. No
+backtest 2026 S1–S7, `sim_mean` ficou 1,2–2,0 pts/jogador acima do real, contra
+0,3–0,7 do consenso cru, e o P10–P90 cobria 50–65% em TE/WR. Centrado, o viés
+cai para o do consenso e a cobertura sobe para 77–83%. `floor_pos` = menor
+pontuação real da posição no histórico, para o pool assimétrico não empurrar
+reservas para negativos impossíveis.
 
 Aplicar:
 

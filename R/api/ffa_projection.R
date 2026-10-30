@@ -44,7 +44,7 @@ library(glue)
       
       # atributos de controle da FFA
       attr(resp, "season") <- attr(.scrp, "season")
-      attr(resp, "week") <-  attr(.scrp, "season")
+      attr(resp, "week") <-  attr(.scrp, "week")
       
       resp
       
@@ -67,6 +67,22 @@ library(glue)
 }
 
 
+
+# Kickers: the league scores FGs by distance (score_settings.yml kick$fg_*), but
+# FFToday / FleaFlicker publish only the FG total and ESPN only 0-39 / 40-49 /
+# 50+, so their short FGs matched no rule and scored 0 - K projected ~45% low.
+# Every FG outside a finer 0-19 / 20-29 / 30-39 split goes to fg_0039 (rule
+# kick$fg_0039 = 3); sources with the fine split (CBS, FanDuel) keep it as is.
+.impute_k_fg <- function(scrape) {
+  k <- scrape$K
+  if (is.null(k) || !"fg" %in% names(k)) return(scrape)
+  col  <- function(x) if (x %in% names(k)) as.numeric(k[[x]]) else rep(NA_real_, nrow(k))
+  fine <- !is.na(col("fg_0019")) | !is.na(col("fg_2029")) | !is.na(col("fg_3039"))
+  rest <- pmax(k$fg - coalesce(col("fg_4049"), 0) - coalesce(col("fg_50"), 0), 0)
+  k$fg_0039 <- if_else(fine, NA_real_, coalesce(rest, col("fg_0039")))
+  scrape$K <- k     # `$<-` keeps the list's season / week attributes
+  scrape
+}
 
 # public function to call the scrap and to wrap it in a DM objetc
 scrapeWebData <- function(.season, .week, .tag) {
@@ -105,9 +121,11 @@ calcProjections <- function(.ffa_data, .scoreRules){
     # anti_join(mis_player_ids, by=join_by(id)) |> 
     # bind_rows(mis_player_ids)
   
+  scrape <- .impute_k_fg(ffa_scrape$scrapeData[[1]])
+
   # FFA PROJECT TABLE ####
   ffa_raw_projection_table <- 
-    projections_table(ffa_scrape$scrapeData[[1]], .scoreRules) |> 
+    projections_table(scrape, .scoreRules) |> 
     # add_ecr() |>
     # add_adp() |> 
     # add_aav() |> 
@@ -132,7 +150,7 @@ calcProjections <- function(.ffa_data, .scoreRules){
   
   # FFA SITE POINTS ####
   ffa_raw_source_points <-
-    .projections_table_data_sources(ffa_scrape$scrapeData[[1]], .scoreRules)
+    .projections_table_data_sources(scrape, .scoreRules)
   
   ffa_proj_source_points <- ffa_raw_source_points |> 
     mutate(
