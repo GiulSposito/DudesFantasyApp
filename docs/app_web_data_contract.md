@@ -694,6 +694,9 @@ Optional:
 historical_bias = sim_mean - projection
 ```
 
+Since the residual pool is centred (`player_simulation.R`), this is ~0 apart
+from Monte Carlo noise and the low-end floor; it is no longer shown in the UI.
+
 ## Opponent fields
 
 Optional, also on `current/rosters` and `current/free_agents`. Built by
@@ -1345,6 +1348,7 @@ my_delta_expected
 their_before_expected
 their_after_expected
 their_delta_expected
+their_bench_delta
 
 my_before_win_probability
 my_after_win_probability
@@ -1385,6 +1389,12 @@ min(my_delta_expected, their_delta_expected)
 ```
 
 These definitions come directly from the decision-engine catalog.
+
+`their_bench_delta` = the partner's bench value after minus before (sum of the
+W0 `sim_mean` his optimal lineup leaves out). The lineup deltas see starters only,
+so `their_delta_expected = 0` means "his starters don't change", not "he loses
+nothing": the depth he gives up shows here (< 0). NA on runs persisted before it
+existed.
 
 ## UI warning
 

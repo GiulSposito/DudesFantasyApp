@@ -158,6 +158,37 @@ stopifnot(
                                      max_receive_per_pos = 3L, top_n = 10L))
 )
 
+# surplus-for-surplus: a full bench, my spare RB13 is NOT among my 5 weakest
+# players. Team 30 has a hole at RB (RB4 starts) and a spare WR12 on its bench.
+# Every row gives RB13 and helps both sides:
+#   rank1  x receive WR15 (his starter): me +10 (WR15 for WR5); him +6 (RB13 for
+#          RB4, his bench WR12 moves into the flex for WR15); his bench 15 -> 7 (-8)
+#   rank3  x receive WR12 (his bench):   me +7; him +9 (RB13 for RB4)
+# The old weakest-only give pool never offered RB13: its best was WR5 x WR12,
+# bench for bench, worth exactly 0 to him.
+cp_sur <- bind_rows(
+  pl(10, 1, "QB", 10, TRUE),  pl(10, 2, "RB", 15, TRUE),  pl(10, 3, "RB", 14, TRUE),
+  pl(10, 5, "WR", 5,  TRUE),  pl(10, 6, "RB", 13, FALSE), pl(10, 7, "WR", 1, FALSE),
+  pl(10, 8, "WR", 2,  FALSE), pl(10, 9, "RB", 3,  FALSE), pl(10, 4, "QB", 4, FALSE),
+  pl(30, 11, "QB", 10, TRUE), pl(30, 12, "WR", 15, TRUE), pl(30, 13, "WR", 14, TRUE),
+  pl(30, 15, "RB", 4,  TRUE), pl(30, 14, "WR", 12, FALSE), pl(30, 16, "WR", 3, FALSE),
+  filter(cp, team_id %in% c(20L, 40L))
+)
+draws_sur <- set_names(map(cp_sur$sim_mean, ~ rep(.x, 200)), as.character(cp_sur$ffa_id))
+out_sur <- recommend_trades(cp_sur, espn_snap, draws_sur, "TESTRUN", 2026, 1, "preview",
+                            team_id = 10L, max_give = 5L, max_receive_per_pos = 3L,
+                            top_n = 10L)
+stopifnot(
+  identical(names(out_sur), names(.empty_trade_recs())),
+  all(out_sur$give_ffa_id == 6L), all(out_sur$their_delta_expected > 0),
+  out_sur$receive_ffa_id[1] == 12L, out_sur$recommendation_rank[1] == 1L,
+  abs(out_sur$my_delta_expected[1]    - 10) < 1e-9,
+  abs(out_sur$their_delta_expected[1] - 6)  < 1e-9,
+  abs(out_sur$their_bench_delta[1]    - (-8)) < 1e-9,
+  with(filter(out_sur, receive_ffa_id == 14L),
+       abs(my_delta_expected - 7) < 1e-9 && abs(their_delta_expected - 9) < 1e-9)
+)
+
 # team_id = NULL -> advise every team; each ranked independently from 1, and the
 # per-team slice is identical to asking for that team alone (spec 43).
 all_teams <- recommend_trades(cp, espn_snap, draws, "TESTRUN", 2026, 1, "preview",

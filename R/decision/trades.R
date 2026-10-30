@@ -21,7 +21,8 @@
 #
 # ponytail: O(advised teams x partners) evaluate_roster() calls - W0 baselines
 # are recomputed per advising team (the horizon baseline is cached per team).
-# A few minutes for the whole league at n_sim=10000; memoise if that ever matters.
+# ~7 min for the whole pipeline at n_sim=10000 (2026 W8, surplus give/receive
+# pools included); memoise if that ever matters.
 #
 # ponytail: when the trade partner IS my week's matchup opponent, my_*_win_probability
 # is optimistic - the received player is counted in my simulated matchup on both
@@ -48,7 +49,7 @@ if (!exists("bridge_espn_to_ffa")) source("./R/decision/league_state.R")
     my_before_expected = double(), my_after_expected = double(),
     my_delta_expected = double(),
     their_before_expected = double(), their_after_expected = double(),
-    their_delta_expected = double(),
+    their_delta_expected = double(), their_bench_delta = double(),
     my_delta_future = double(), my_delta_horizon = double(),
     their_delta_future = double(), their_delta_horizon = double(),
     my_before_win_probability = double(), my_after_win_probability = double(),
@@ -183,16 +184,21 @@ recommend_trades <- function(current_players, espn_snap, draws_by_ffa,
   my_before  <- evaluate_roster(my_base, slots, draws_by_ffa, my_opp_ffa, pinned_ffa = my_pin)
   n_before_me <- nrow(my_before$optimal_lineup[[1]])
 
-  # GIVE pool: the max_give weakest movable players (you trade from surplus, and
-  # a strong player rarely nets delta_me > 0 anyway) in each scope, unioned.
-  # ~max_give x ~13 partners x max_receive_per_pos evaluate_roster() calls per
+  # GIVE pool, unioned across scopes: the max_give weakest movable players, plus
+  # the max_give best ones my optimal lineup leaves on the bench - the positional
+  # surplus that can fill a partner's hole (the only gives that can help the
+  # partner too; the weakest alone yield bench-for-bench swaps worth 0 to him).
+  # ~2 x max_give x ~13 partners x receive pool evaluate_roster() calls per
   # advised team and scope. Widen max_give / max_receive_per_pos if the surplus
   # heuristic misses a good trade.
   movable   <- my_base |> filter(has_draws(ffa_id), !ffa_id %in% locked_all)
+  my_bench  <- movable |> filter(!ffa_id %in% my_before$optimal_lineup[[1]]$ffa_id)
   give_pool <- bind_rows(
     movable |> filter(!ffa_id %in% bye_ffa) |> arrange(sim_mean) |> head(max_give),
+    my_bench |> filter(!ffa_id %in% bye_ffa) |> arrange(desc(sim_mean)) |> head(max_give),
     if (has_hz) movable |> arrange(fut) |> head(max_give),
-    if (has_hz) movable |> arrange(hzv) |> head(max_give)
+    if (has_hz) movable |> arrange(hzv) |> head(max_give),
+    if (has_hz) my_bench |> arrange(desc(hzv)) |> head(max_give)
   ) |>
     distinct(ffa_id, .keep_all = TRUE)
   if (nrow(give_pool) == 0L) return(.empty_trade_recs())
@@ -217,6 +223,7 @@ recommend_trades <- function(current_players, espn_snap, draws_by_ffa,
 
     recv_all <- p_base |> filter(has_draws(ffa_id), !ffa_id %in% locked_all)
     if (nrow(recv_all) == 0L) next
+    p_bench_ffa <- setdiff(recv_all$ffa_id, p_before$optimal_lineup[[1]]$ffa_id)
 
     for (gi in seq_len(nrow(give_pool))) {
       g    <- give_pool[gi, ]
@@ -224,7 +231,9 @@ recommend_trades <- function(current_players, espn_snap, draws_by_ffa,
 
       # RECEIVE candidates: shares an eligible slot with the give player
       # (flex-compatible); per scope, a strict upgrade in that scope's value, top
-      # max_receive_per_pos per position; unioned across scopes
+      # max_receive_per_pos per position; plus the partner's best bench players
+      # (his surplus - costs his lineup nothing, may fill my hole even when not an
+      # upgrade on the give: d_me decides); unioned across scopes
       g_bye <- g$ffa_id %in% bye_ffa
       ok    <- recv_all |>
         filter(map_lgl(eligible_slot_ids, ~ length(intersect(start_elig(.x), gset)) > 0))
@@ -236,7 +245,9 @@ recommend_trades <- function(current_players, espn_snap, draws_by_ffa,
       recv <- bind_rows(
         if (!g_bye) top(filter(ok, !ffa_id %in% bye_ffa, sim_mean > g$sim_mean), sim_mean),
         if (has_hz) top(filter(ok, fut > g$fut), fut),
-        if (has_hz) top(filter(ok, hzv > g$hzv), hzv)
+        if (has_hz) top(filter(ok, hzv > g$hzv), hzv),
+        top(filter(ok, ffa_id %in% p_bench_ffa, !ffa_id %in% bye_ffa), sim_mean),
+        if (has_hz) top(filter(ok, ffa_id %in% p_bench_ffa), hzv)
       )
       if (nrow(recv) == 0L) next
       recv <- recv |> distinct(ffa_id, .keep_all = TRUE)
@@ -264,6 +275,8 @@ recommend_trades <- function(current_players, espn_snap, draws_by_ffa,
         if (nrow(their_after$optimal_lineup[[1]]) < n_before_them) next
 
         d_them <- their_after$expected_points - p_before$expected_points
+        # what his lineup delta can't see: depth lost (< 0) or gained on his bench
+        b_them <- their_after$bench_value - p_before$bench_value
         f_them <- h_delta(pt, r$espn_id, tid, g$espn_id)
 
         rows[[length(rows) + 1L]] <- tibble(
@@ -279,6 +292,7 @@ recommend_trades <- function(current_players, espn_snap, draws_by_ffa,
           their_before_expected = p_before$expected_points,
           their_after_expected  = their_after$expected_points,
           their_delta_expected  = d_them,
+          their_bench_delta     = b_them,
           my_delta_future     = f_me,   my_delta_horizon    = d_me + f_me,
           their_delta_future  = f_them, their_delta_horizon = d_them + f_them,
           my_before_win_probability = my_before$win_probability,

@@ -26,7 +26,8 @@ library(tidyverse)
 # horizon columns, absent from decision_dbs persisted before they existed
 .HZ_FA_COLS    <- c("delta_future", "delta_horizon", "rank_future", "rank_horizon")
 .HZ_TRADE_COLS <- c("my_delta_future", "my_delta_horizon", "their_delta_future",
-                    "their_delta_horizon", "rank_future", "rank_horizon")
+                    "their_delta_horizon", "rank_future", "rank_horizon",
+                    "their_bench_delta")
 .with_cols <- function(df, cols) { df[setdiff(cols, names(df))] <- NA; df }
 
 build_waiver_recommendations <- function(src, run) {
@@ -75,6 +76,7 @@ build_trade_recommendations <- function(src, run) {
       receive_player_id, receive_ffa_id, receive_player_name, receive_position,
       my_before_expected, my_after_expected, my_delta_expected,
       their_before_expected, their_after_expected, their_delta_expected,
+      their_bench_delta,
       my_delta_future, my_delta_horizon, their_delta_future, their_delta_horizon,
       my_before_win_probability, my_after_win_probability, my_delta_win_probability,
       fairness, trade_score, partner_is_my_opponent,
