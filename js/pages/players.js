@@ -8,7 +8,7 @@ import { sectionLabel, posBadge, coverageDot, rankTable, avatar, rangeBar, teamB
 
 let search = "";
 let cov = "ALL";
-let owner = "ALL";            // ALL | MINE | OTHERS | FA
+let owners = new Set();       // MINE | OTHERS | FA; empty = all
 let sort = { key: "sim_mean", dir: "desc" };
 let limit = 100;
 
@@ -19,9 +19,8 @@ export async function render(root) {
 
   let rows = all.map((r) => ({ ...r, player_id: r.espn_id, _team: teamOf.get(String(r.ffa_id)) ?? null }));
   if (cov !== "ALL") rows = rows.filter((r) => r.coverage_class === cov);
-  if (owner === "MINE") rows = rows.filter((r) => String(r._team) === String(teamId));
-  if (owner === "OTHERS") rows = rows.filter((r) => r._team != null && String(r._team) !== String(teamId));
-  if (owner === "FA") rows = rows.filter((r) => r._team == null);
+  const ownerOf = (r) => r._team == null ? "FA" : String(r._team) === String(teamId) ? "MINE" : "OTHERS";
+  if (owners.size) rows = rows.filter((r) => owners.has(ownerOf(r)));
   const dir = sort.dir === "asc" ? 1 : -1;
   rows.sort((a, b) => {
     const x = a[sort.key], y = b[sort.key];
@@ -42,8 +41,11 @@ export async function render(root) {
       ...chips(["ALL", "QB", "RB", "WR", "TE", "K", "DST"], position, (p) => { limit = 100; state.set({ position: p }); }, { ALL: "Todos" })),
     el("div", { class: "toolbar" },
       el("span", { class: "stat__sub" }, "dono"),
-      ...chips(["ALL", "MINE", "OTHERS", "FA"], owner, (o) => { owner = o; limit = 100; render(root); },
-        { ALL: "Todos", MINE: "Meu time", OTHERS: "Outros times", FA: "Free agents" }),
+      ...chips(["ALL", "MINE", "OTHERS", "FA"], owners.size ? owners : "ALL", (o) => {
+        if (o === "ALL") owners.clear();
+        else if (!owners.delete(o)) owners.add(o);
+        limit = 100; render(root);
+      }, { ALL: "Todos", MINE: "Meu time", OTHERS: "Outros times", FA: "Free agents" }),
       el("span", { class: "stat__sub" }, "confiança"),
       ...chips(["ALL", "ensemble", "sparse", "single"], cov, (c) => { cov = c; limit = 100; render(root); },
         { ALL: "Todas", ensemble: "Alta", sparse: "Média", single: "Baixa" })),
@@ -67,7 +69,7 @@ export async function render(root) {
       { key: "prob_gt_20", label: "P(>20)", num: true, sortable: true, fmt: (v) => fmt.prob(v, 0) },
       { key: "n_sources", label: "Fontes", num: true, sortable: true },
       { key: "coverage_class", label: "Conf", num: true, fmt: (v) => coverageDot(v) },
-    ], { onRow: openPlayer, sort: { ...sort, onSort } }),
+    ], { onRow: openPlayer, sort: { ...sort, onSort }, rowClass: (r) => ownerOf(r) === "MINE" ? "cockpit-row--mine" : null }),
     rows.length > shown.length ? el("button", { class: "chip btn-more", onclick: () => { limit += 100; render(root); } },
       `Mostrar mais ${Math.min(100, rows.length - shown.length)}`) : null,
   );
