@@ -325,6 +325,8 @@ table.cockpit-table tbody td {
 table.cockpit-table tbody tr { transition: background-color 120ms ease-out; }
 table.cockpit-table tbody tr:hover { background: rgba(0, 255, 249, 0.04); }
 table.cockpit-table tbody tr.clickable { cursor: pointer; }
+table.cockpit-table tbody tr.cockpit-row--mine { background: rgba(0, 255, 249, 0.045); }
+table.cockpit-table tbody tr.cockpit-row--mine .player-cell { color: var(--accent); }
 
 // any player element that opens the shared detail drawer (components.playerLink)
 .player-link { cursor: pointer; }

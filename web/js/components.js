@@ -44,9 +44,11 @@ export function badge(text, kind = "accent") {
   return el("span", { class: `badge-pill badge-pill--${kind}` }, text);
 }
 
-// toolbar chips, one active: chips(values, current, onPick, {value: label})
+// toolbar chips: chips(values, current, onPick, {value: label}); current is the
+// active value, or a Set when several can be active
 export function chips(values, current, onPick, labels = {}) {
-  return values.map((v) => el("button", { class: "chip" + (v === current ? " active" : ""),
+  const isOn = (v) => current instanceof Set ? current.has(v) : v === current;
+  return values.map((v) => el("button", { class: "chip" + (isOn(v) ? " active" : ""),
     onclick: () => onPick(v) }, labels[v] || v));
 }
 
@@ -154,7 +156,8 @@ export function rankTable(rows, cols, opts = {}) {
   }))));
   const tb = el("tbody");
   for (const r of rows) {
-    tb.append(el("tr", opts.onRow ? { class: "clickable", onclick: () => opts.onRow(r) } : {},
+    const rowClass = [opts.onRow && "clickable", opts.rowClass?.(r)].filter(Boolean).join(" ");
+    tb.append(el("tr", { class: rowClass, onclick: opts.onRow ? () => opts.onRow(r) : null },
       ...cols.map((c) => {
         const v = r[c.key];
         return el("td", { class: (c.num ? "num " : "") + (c.tight ? "col-tight" : "") },
