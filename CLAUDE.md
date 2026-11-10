@@ -20,7 +20,7 @@ recommendations), `docs/PIPELINE_RUNBOOK.md` (operational how-to-run), and
 
 ## Running things
 
-No build, no lint, no test suite. Everything is `source()`d, and every path in the
+No build, no lint. Everything is `source()`d, and every path in the
 code is relative (`./data/...`, `./config/...`), so **the working directory must be
 the project root**. Open `DudesApp.Rproj` in RStudio or `setwd()` there first.
 
@@ -38,6 +38,11 @@ the project root**. Open `DudesApp.Rproj` in RStudio or `setwd()` there first.
   `source("R/decision/decision_pipeline.R"); run_decision_pipeline(season, week, tag)`.
 - Ad-hoc analyses live in `R/snippets/` and are standalone — each reads the `.rds`
   databases and prints/plots. Not part of the pipeline.
+- Tests: `source("tests/run_all.R")` runs the plain-`stopifnot` files under
+  `tests/decision/` and `tests/web/`, stopping at the first failure;
+  `node tests/web/compare.check.mjs` and `node tests/web/trade-sim.check.mjs` check
+  the site's JS logic. Known failure and current status:
+  `docs/PIPELINE_RUNBOOK.md`, step 6.
 
 **Legacy / dead — moved to `archive/`, do not build on these:**
 `archive/R/pipeline/data_pipeline_nfl.R` + `archive/R/api/nfl_*.R` (old NFL Fantasy
@@ -70,8 +75,8 @@ scrape+API       orchestrate           dm databases       Monte-Carlo           
   is an `httr2` client for the ESPN Fantasy API (self-contained; `espn_snapshot()`
   fetches most of the league in one request), driven by
   `R/pipeline/data_pipeline_espn.R`; `example_espn_342842788.R` shows lower-level
-  usage. `nfl_*.R` (`nfl_api.R` core + `nfl_league.R` / `nfl_players.R` /
-  `nfl_game.R`) hit the legacy NFL Fantasy API over `httr` — dead, see below.
+  usage. The legacy NFL Fantasy API wrappers (`nfl_*.R`) now live in
+  `archive/R/api/` — dead, see below.
 - **`R/pipeline/data_pipeline.R`** — the current one-entry weekly orchestrator:
   `importFfa()` + `importEspn()` build/upsert `ffa_db` and `espn_db`, then it calls
   into `R/decision/` and `R/web/` (see "Running things" above). Each import section
@@ -85,32 +90,40 @@ scrape+API       orchestrate           dm databases       Monte-Carlo           
   `db$table_name`. Live tables: `ffa_db`, `espn_db` (15 `espn_*` tables),
   `analytical_db` (historical projection-vs-actual residuals, feeds the decision
   engine's Monte Carlo — rebuilt rarely, not part of the weekly cycle), and
-  `decision_db` (7 tables of forecasts/recommendations, one `run_id` per pipeline
-  run, accumulates). Dead: `nfl_teams_db`, `nfl_players_db`, `nfl_stats_db`,
+  `decision_db` (9 tables: forecasts, recommendations, and the `current_players` /
+  `free_agents` inputs the web bundle reads; one `run_id` per pipeline run,
+  accumulates). Dead: `nfl_teams_db`, `nfl_players_db`, `nfl_stats_db`,
   `nfl_round_db`, `nfl_recap_db` (legacy NFL path), `dudes_simulation_db` ("gen-1"
   simulation, superseded). Gitignored. Older/wider copies live in `data/2023/`
-  (2019–2023 snapshot) and `historic/` (2019–2025 merge, no keys) — archive only, no
-  code reads them. **See [`DATA_CATALOG.md`](DATA_CATALOG.md)** for the per-table
+  (2019–2023 snapshot) and `historic/` (2019–2025 merge, no keys) — archive only;
+  the live pipeline never reads them, only `R/analysis/build_historic_datasets.R`
+  reads `historic/` to rebuild `analytical_db`. **See [`DATA_CATALOG.md`](DATA_CATALOG.md)** for the per-table
   dictionary (columns, keys, meaning) and the season/week coverage matrix of every
   copy.
 - **`R/decision/`** — the live Monte-Carlo decision engine, orchestrated by
   `decision_pipeline.R::run_decision_pipeline()`. `snapshot.R` + `current_consensus.R`
   pick the FFA/ESPN snapshot and build the per-player consensus projection;
   `player_simulation.R` turns each projection into a distribution by bootstrap-
-  resampling historical residuals from `analytical_db` (nearest-neighbor pool by
-  position + projection value, with a 4-level fallback for thin pools), and folds in
-  realized points for players whose game has already locked; `league_state.R`
+  resampling centred historical residuals from `analytical_db` (nearest-neighbor pool
+  by position + projection value, with a 4-level fallback for thin pools; draws are
+  floored at the position's lowest historical score), and folds in realized points
+  for players whose game has already locked; `league_state.R`
   (incl. `bridge_espn_to_ffa()`) joins ESPN roster state onto `ffa_id`;
   `matchup_simulation.R` simulates each week's matchups for win probability;
   `lineup_optimizer.R` + `roster_evaluator.R` do exact branch-and-bound lineup
   optimization against the league's real roster slots (no LP solver, pinning locked
   starters via bipartite matching); `free_agents.R` and `trades.R` rank ADD/DROP and
-  1×1 trade candidates by delta expected points / win probability; `decision_db.R`
-  persists everything. Full mechanics: `docs/decision_engine_spec.md`.
+  1×1 trade candidates by delta expected points in three scopes (this week, W1..W3
+  from ESPN weekly projections, W0..W3 — see `docs/horizon_projections.md`), with
+  delta win probability reported but not ranked on; `decision_db.R` persists
+  everything. Full mechanics: `docs/decision_engine_spec.md`.
 - **`R/web/`** — `build_web_bundle.R` (+ `bundle/*.R`) reads `data/decision_db.rds`
   (and `espn_db`/`ffa_db`/`analytical_db`) and writes Parquet + `manifest.json` to
-  `web/data/`, consumed by the static Quarto site under `web/*.qmd`. This layer does
-  no analysis of its own — pure serialization of the decision engine's output.
+  `web/data/`. It never re-simulates or re-bridges ids: its marts reshape and
+  aggregate persisted data, and the lineup optimizer runs only for the rosters,
+  best-lineup and draft marts. The static Quarto site is a JavaScript app: each
+  `web/*.qmd` is a shell calling `boot()`, and `web/js/pages/*.js` query the Parquet
+  files in the browser with DuckDB-Wasm (`web/js/data.js`).
 - **`archive/R/transformation/`, `archive/R/snippets/simulation_machine.R`,
   `archive/R/analysis/team_optimizer.R`, `archive/R/analysis/projection_ml.R`** — the
   "gen-1" simulation/optimization approach (historical-error resampling +
@@ -122,11 +135,12 @@ scrape+API       orchestrate           dm databases       Monte-Carlo           
 
 `.tag` marks when in the week data was captured, and is part of the primary key on
 time-sensitive tables, so multiple tagged versions coexist in the same database
-(consumers always take `max(timestamp)`). Values actually used: `"preview"`
-(early-week projections), `"preKickoff"` (ad hoc, right before the first game),
-`"preTNF"`/`"posTNF"` (around Thursday Night Football — some players already carry
-real points after `posTNF`), `"preMNF"` (before Monday Night), `"final"` (after all
-games — the only tag that pulled matchup recaps, but only in the dead NFL pipeline),
+(consumers always take `max(timestamp)`). Main values: `"preWaivers"`/`"posWaivers"`
+(around waiver processing; `"preview"` is the older early-week tag), `"preKickoff"`
+(ad hoc, right before the first game), `"preTNF"`/`"posTNF"` (around Thursday Night
+Football — some players already carry real points after `posTNF`), `"preMNF"` (before
+Monday Night), `"final"` (after all games — the only tag `importEspn()` accepts for a
+past week, and its ESPN snapshot marks a week closed for the web history marts),
 `"season"` (season-level snapshot, week 0). Tags are never validated — a typo creates
 a silent orphan partition. Full vocabulary: `docs/PIPELINE_RUNBOOK.md`.
 
@@ -137,7 +151,7 @@ The league moved to ESPN; the legacy NFL Fantasy pipeline
 (`config/config.yml` has no `authToken` anymore). ESPN (`R/pipeline/data_pipeline_espn.R`, folded into
 `data_pipeline.R`) is now the only live league-data source. Bridging ESPN player ids
 to the `ffanalytics` ids the decision engine keys on is done —
-`bridge_espn_to_ffa()` in `R/decision/league_state.R:37`.
+`bridge_espn_to_ffa()` in `R/decision/league_state.R:42`.
 
 ## Config & secrets
 

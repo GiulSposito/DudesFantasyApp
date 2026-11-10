@@ -5,8 +5,8 @@ source("./R/decision/league_state.R")
 
 # --- fixtures ---------------------------------------------------------------
 analytical_db <- dm(player_ids = tibble(
-  ffa_id  = c(1L, 2L),
-  espn_id = c(100L, 101L),     # direct-match ids
+  ffa_id  = c(1L, 2L, 3L, 4L),
+  espn_id = c(100L, 101L, 600L, 600L),   # direct-match ids; 600 is ambiguous
   nfl_id  = NA_integer_, numfire_id = NA_character_
 ))
 
@@ -24,9 +24,9 @@ ffa_db <- dm(
 )
 
 rosters <- tibble(
-  player_id   = c(100L, -16005L, 200L,  300L,       400L,      500L),
-  player_name = c("A A", "Browns D/ST", "Chris Test", "Nobody Here", "Over Ride", "Dup Name"),
-  position    = c("RB",  "D/ST",        "WR",         "TE",          "QB",        "RB"),
+  player_id   = c(100L, -16005L, 200L,  300L,       400L,      500L,       600L),
+  player_name = c("A A", "Browns D/ST", "Chris Test", "Nobody Here", "Over Ride", "Dup Name", "Chris Test"),
+  position    = c("RB",  "D/ST",        "WR",         "TE",          "QB",        "RB",       "WR"),
   is_starter  = TRUE
 )
 overrides <- tibble(player_id = 400L, ffa_id = 99L)
@@ -34,10 +34,12 @@ overrides <- tibble(player_id = 400L, ffa_id = 99L)
 b <- bridge_espn_to_ffa(rosters, analytical_db, ffa_db, overrides = overrides)
 
 expect <- c(`100` = "espn_id", `-16005` = "dst_offset", `200` = "name_pos",
-            `300` = NA, `400` = "override", `500` = NA)
+            `300` = NA, `400` = "override", `500` = NA, `600` = "name_pos")
 got <- set_names(b$bridge_method, b$player_id)
 stopifnot(identical(got[names(expect)], expect))
 stopifnot(
+  nrow(b) == nrow(rosters),               # one row per input row, never duplicated
+  b$ffa_id[b$player_id == 600]    == 7L,  # ambiguous espn_id -> falls to name_pos
   b$ffa_id[b$player_id == 100]    == 1L,
   b$ffa_id[b$player_id == -16005] == 50L,
   b$ffa_id[b$player_id == 200]    == 7L,

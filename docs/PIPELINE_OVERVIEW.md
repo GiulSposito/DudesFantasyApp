@@ -29,16 +29,18 @@ oficial da liga). Cada uma vira um objeto `dm` próprio
 (`data/ffa_db.rds`, `data/espn_db.rds`). O motor de decisão
 (`R/decision/`) lê os dois, mais o histórico em `data/analytical_db.rds`,
 e produz `data/decision_db.rds`. A camada web só lê esse resultado final
-e publica --- não roda nenhuma análise.
+e publica --- não roda simulação.
 
 **Importante --- o que está morto hoje:** o pipeline NFL Fantasy legado
-(`R/pipeline/data_pipeline_nfl.R`, `R/api/nfl_*.R`, sem `authToken` no
-config) e a primeira geração de simulação/otimização
-(`R/snippets/simulation_machine.R`, `R/analysis/team_optimizer.R`,
-`R/analysis/projection_ml.R`, `R/transformation/*`) foram superados pela
-decision engine e não fazem parte do ciclo atual --- alguns nem rodam
-mais como estão (`team_optimizer.R` tem uma leitura de RDS incompleta).
-Detalhe da divisão: `docs/PIPELINE_RUNBOOK.md:205-209`.
+(`archive/R/pipeline/data_pipeline_nfl.R`, `archive/R/api/nfl_*.R`, sem
+`authToken` no config) e a primeira geração de simulação/otimização
+(`archive/R/snippets/simulation_machine.R`,
+`archive/R/analysis/team_optimizer.R`,
+`archive/R/analysis/projection_ml.R`, `archive/R/transformation/*`) foram
+superados pela decision engine e não fazem parte do ciclo atual ---
+alguns nem rodam mais como estão (`team_optimizer.R` tem uma leitura de
+RDS incompleta). Detalhe da divisão: seção "O que NÃO faz parte do ciclo"
+de `docs/PIPELINE_RUNBOOK.md`.
 
 ------------------------------------------------------------------------
 
@@ -60,16 +62,18 @@ Orquestrado por `R/pipeline/data_pipeline.R`, bloco de parâmetros
   matchups, draft, tudo numa requisição) mais o pool completo de
   jogadores (`espn_all_players()` + `espn_player_stats()`). Autenticado
   via cookies de sessão (`ESPN_S2`, `ESPN_SWID`) em
-  `config/config.yml`. Upsert em `data/espn_db.rds` (15 tabelas).
+  `config/config.yml`. Também guarda as projeções semanais ESPN das 3
+  semanas seguintes, usadas em waivers e trocas (seção 6). Upsert em
+  `data/espn_db.rds` (15 tabelas).
 - Cache bruto de cada resposta em `data/temp/*.rds` --- permite
   reprocessar sem bater na rede de novo.
-- `.tag` marca *quando* na semana o snapshot foi capturado (`preview`,
-  `preKickoff`, `preTNF`/`posTNF`, `preMNF`, `final`, `season`) e é
+- `.tag` marca *quando* na semana o snapshot foi capturado (`preWaivers`,
+  `posWaivers`, `preTNF`/`posTNF`, `preMNF`, `final`, entre outras) e é
   parte da chave primária das tabelas temporais --- múltiplos snapshots
   da mesma `season/week/tag` coexistem (timestamps diferentes); o
   consumo sempre pega `max(timestamp)`. Tags não são validadas em
   lugar nenhum: um typo cria uma partição órfã silenciosa. Vocabulário
-  completo: `docs/PIPELINE_RUNBOOK.md:135-148`.
+  completo: seção "Vocabulário de tag" de `docs/PIPELINE_RUNBOOK.md`.
 
 ------------------------------------------------------------------------
 
@@ -86,8 +90,8 @@ reconcilia schema-drift entre colunas antes do upsert
 
 Duas camadas adicionais, fora do ciclo semanal:
 
-- **`data/analytical_db.rds`** (`consensus_error_history`, ~28.800
-  linhas projeção × realizado, temporadas ≤ 2025) --- a base que
+- **`data/analytical_db.rds`** (`consensus_error_history`, ~34.800
+  linhas projeção × realizado, temporadas 2020--2025) --- a base que
   alimenta o Monte Carlo do motor de decisão. Construída uma vez, não
   reconstruída toda semana; só precisa ser refeita para incorporar uma
   temporada encerrada nova à calibração.
@@ -138,13 +142,17 @@ uma hierarquia de fallback de 4 níveis até garantir tamanho suficiente:
 4. todos os resíduos históricos
 ```
 
-A simulação em si é um bootstrap simples: `sample(pool, n_sim=10000,
+A simulação em si é um bootstrap: `sample(pool - mean(pool), n_sim=10000,
 replace=TRUE)` somado à projeção atual, com `set.seed()` fixado uma vez
-por execução (não por jogador).
+por execução (não por jogador). O pool é **centrado**: carrega a forma do
+erro (dispersão, assimetria), não a média, porque o viés do histórico
+2020--2025 não se confirmou na liga ESPN atual. Por isso `sim_mean` fica
+perto de `projection`. Cada draw tem piso na menor pontuação semanal da
+posição no histórico, para a centragem não gerar negativos impossíveis.
 
 **Output persistido** (`player_forecasts`): `sim_mean`, `sim_sd`,
-quantis `p05`--`p95`, e probabilidades de limiar (`prob_gt_10`,
-`prob_gt_15`, `prob_gt_20`).
+quantis `p05`--`p95`, e probabilidades de limiar (`prob_gt_10` a
+`prob_gt_30`).
 
 **Realized-points folding** (§11.3, `apply_realized_points()`): quando
 o jogo de um jogador já travou (`lineup_locked` da ESPN), a distribuição
@@ -152,6 +160,13 @@ inteira é substituída por um valor fixo (os pontos reais) --- uma
 distribuição degenerada. Esse único mecanismo, aplicado uma vez no
 início do pipeline, é suficiente para que lineup, free agents e trades
 tratem "jogo já decidido" corretamente sem lógica especial em cada um.
+
+**Previsão zero.** As fontes FFA param de listar quem não deve jogar, em
+vez de projetar 0. Jogador em elenco com status diferente de `ACTIVE`,
+em bye ou sem time na NFL, e free agent em bye, recebe uma linha
+degenerada em 0, para não quebrar `check_starters_have_forecast()` nem
+sumir do pool de waivers. Titular `ACTIVE` com jogo e sem projeção
+continua sendo erro de dados.
 
 ------------------------------------------------------------------------
 
@@ -200,24 +215,40 @@ otimizado: `player_out` / `player_in`, `delta_expected`,
 
 ### Free agents (`R/decision/free_agents.R`, spec §19-23)
 
-Ranking de candidatos ADD/DROP por `delta_expected` /
-`delta_win_probability` contra o time do usuário. Banco travado é
-excluído inteiramente do pool (dropar um jogador cujo jogo já acabou
-não é uma decisão real).
+Grade limitada DROP×ADD contra o time do usuário, pontuada por
+`evaluate_roster()`, uma linha por jogador adicionado (melhor drop).
+Ordena por `delta_expected`; `delta_win_probability` é reportado, mas
+não ordena (ruído de Monte Carlo). Banco travado é excluído inteiramente
+do pool (dropar um jogador cujo jogo já acabou não é uma decisão real).
 
 ### Trades (`R/decision/trades.R`, spec §24-29)
 
-Varre trocas 1×1 candidatas entre times, filtra e ranqueia por
-`trade_score` / `fairness` (= `-abs(meu delta − delta do outro)`),
-priorizando trocas onde os dois lados ganham. `recommendation_rank`
-reinicia em 1 para cada `my_team_id`. Jogadores travados (titulares ou
-banco) saem do universo de troca do mesmo jeito que em FA.
+Varre trocas 1×1 para todos os times da liga. O lado GIVE junta os
+jogadores mais fracos e o excedente do banco do time aconselhado; o lado
+RECEIVE junta upgrades do parceiro e o melhor do banco dele. Em cada
+escopo, mantém só trocas com `my_delta > 0` e `their_delta >= 0` e
+ranqueia por `my_delta + min(my_delta, their_delta)` (`trade_score` no
+escopo da semana). `fairness` (= `-abs(meu delta − delta do outro)`) é
+reportado, não ordena. `recommendation_rank` reinicia em 1 para cada
+`my_team_id`. Jogadores travados (titulares ou banco) saem do universo
+de troca do mesmo jeito que em FA.
+
+### Escopos de ranking
+
+Free agents e trades ranqueiam em três escopos, selecionáveis no site:
+semana atual (W0, Monte Carlo, `recommendation_rank`), futuro (W1..W3,
+projeção semanal ESPN, `rank_future`) e ambos (W0..W3, `rank_horizon`).
+Jogador em bye fica fora do escopo da semana; nos outros, o bye é uma
+semana de 0. Escopos futuros usam médias de lineup, sem win probability.
+Detalhe: `docs/horizon_projections.md`.
 
 ### Persistência
 
-Tudo cai em **um único** `data/decision_db.rds` --- 7 tabelas, cada
-execução de `run_decision_pipeline()` marcada com um `run_id` próprio,
-acumulando histórico (nada é sobrescrito).
+Tudo cai em **um único** `data/decision_db.rds` --- 9 tabelas (7 de
+previsões e recomendações, mais `current_players` e `free_agents`,
+entradas do bundle web), cada execução de `run_decision_pipeline()`
+marcada com um `run_id` próprio, acumulando histórico (nada é
+sobrescrito).
 
 ------------------------------------------------------------------------
 
@@ -228,12 +259,15 @@ acumulando histórico (nada é sobrescrito).
 | Ingestão bruta | cache `.rds` por resposta | `data/temp/*.rds` |
 | Dados relacionais | objeto `dm` (PK/FK) em `.rds` | `data/ffa_db.rds`, `data/espn_db.rds`, `data/analytical_db.rds`, `data/decision_db.rds` |
 | Publicação web | Parquet + `manifest.json` | `web/data/` (gerado por `R/web/build_web_bundle.R`, contrato em `docs/app_web_data_contract.md`) |
-| Apresentação | site Quarto estático, só leitura | `web/*.qmd` |
+| Apresentação | site Quarto estático, só leitura | `web/*.qmd`, `web/js/` |
 
-A camada web nunca lê `.rds` nem roda análise --- só serializa o
-resultado já pronto de `decision_db` em Parquet, com uma opção
-`privacy = "public"` que remove nomes/ids de dono antes de publicar em
-host público (GitHub Pages).
+O bundle lê os `.rds` e grava marts em Parquet sem re-simular: além de
+reformatar e agregar, só roda o otimizador de lineup para os marts de
+rosters, melhores lineups e draft. A opção `privacy = "public"` remove
+nomes/ids de dono antes de publicar em host público (GitHub Pages). O
+site publicado nunca vê `.rds`: cada `web/*.qmd` só chama `boot()`, e
+`web/js/pages/*.js` consultam o Parquet no navegador com DuckDB-Wasm
+(`web/js/data.js`).
 
 ------------------------------------------------------------------------
 
@@ -250,7 +284,8 @@ host público (GitHub Pages).
 | Simulação Monte Carlo pareada (draw a draw) | `simulate_matchup()` | win probability consistente entre os dois lados de um confronto |
 | Otimização combinatória exata (branch-and-bound) | `optimize_lineup()` | ótimo garantido num espaço de busca pequeno, sem depender de solver externo |
 | Matching bipartido máximo (Kuhn) | pin de titulares travados | travar apenas quem precisa, sem distorcer o resto da otimização |
-| Ranking por delta | free agents / trades | comparar candidatos numa métrica comum (pontos esperados, win probability) |
+| Ranking por delta | free agents / trades | comparar candidatos numa métrica comum (pontos esperados) |
+| Consulta de Parquet no navegador | DuckDB-Wasm (`web/js/data.js`) | site estático, sem servidor |
 
 ------------------------------------------------------------------------
 
@@ -274,8 +309,8 @@ semanal): cobertura empírica de intervalo `P10--P90 ≈ 0.80`,
 `P25--P75 ≈ 0.50`, `|bias| < 0.5` --- confirma que a incerteza reportada
 bate com o erro real observado.
 
-Exemplo de execução real registrado em
-`docs/PIPELINE_RUNBOOK.md:195-201` (2026 semana 1, tag `preKickoff`):
+Exemplo de execução real registrado na seção "Exemplo de saída" de
+`docs/PIPELINE_RUNBOOK.md` (2026 semana 1, tag `preKickoff`):
 563 linhas em `player_forecasts` (341 ensemble / 116 sparse / 106
 single), quantis monótonos em 100% das linhas,
 `cor(projection, sim_mean) = 0.986`, 7 matchups simulados com
@@ -287,9 +322,12 @@ probabilidades somando 1, 14 avaliações de lineup (7 times já no ótimo),
 
 ## 10. O que é legado
 
-Ver a lista completa e o porquê em `docs/PIPELINE_RUNBOOK.md:205-209`.
-Resumo: pipeline NFL Fantasy (`R/pipeline/data_pipeline_nfl.R`,
-`R/api/nfl_*.R`) e a primeira geração de simulação/otimização
-(`R/snippets/simulation_machine.R`, `R/analysis/team_optimizer.R`,
-`R/analysis/projection_ml.R`, `R/transformation/*`) --- superados pela
-decision engine descrita acima, não fazem parte do ciclo atual.
+Ver a lista completa e o porquê na seção "O que NÃO faz parte do ciclo"
+de `docs/PIPELINE_RUNBOOK.md`. Resumo: pipeline NFL Fantasy
+(`archive/R/pipeline/data_pipeline_nfl.R`, `archive/R/api/nfl_*.R`) e a
+primeira geração de simulação/otimização
+(`archive/R/snippets/simulation_machine.R`,
+`archive/R/analysis/team_optimizer.R`,
+`archive/R/analysis/projection_ml.R`, `archive/R/transformation/*`) ---
+superados pela decision engine descrita acima, não fazem parte do ciclo
+atual.

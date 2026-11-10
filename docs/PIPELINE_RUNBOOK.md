@@ -23,7 +23,7 @@ Manual operacional curto. Para o detalhe de cada estágio, ver `README.md`; para
 
 ### 1. Parametrizar
 
-Editar o bloco `# MASTER PARAMETERS ####` no topo de `R/pipeline/data_pipeline.R` (linhas 12-18):
+Editar o bloco `# MASTER PARAMETERS ####` no topo de `R/pipeline/data_pipeline.R` (linhas 20-27):
 
 ``` r
 .season <- 2026L
@@ -42,7 +42,7 @@ source("R/pipeline/data_pipeline.R")
 
 - `importFfa()` --- scrape do `ffanalytics` (~10 sites: CBS, ESPN, FantasyPros, FFToday, FleaFlicker, FanDuel, NFL, RTSports, Walterfootball, ...), calcula as projeções de consenso com `config/score_settings.yml`, e faz upsert em `data/ffa_db.rds` (5 tabelas). Leva alguns minutos. **Falha de site é silenciosa e parcial** --- se uma fonte cair, o scrape continua sem ela; confira a contagem de `data_src` no fim.
   `config/score_settings.yml` precisa ter `kick$fg_0039: 3.0` (FG de 0–39 jardas): FFToday / FleaFlicker publicam só o total de FG e a ESPN só 0–39 / 40–49 / 50+; `.impute_k_fg()` (`R/api/ffa_projection.R`) joga esses FG em `fg_0039`. Sem a regra, o K projeta ~45% abaixo do real.
-- `importEspn()` --- um snapshot combinado da liga + o pool de jogadores via API ESPN, upsert em `data/espn_db.rds` (15 tabelas, incl. times NFL + calendário de jogos via `proTeamSchedules_wl` + rank de defesa vs posição, `espn_pos_vs_opponent`). **Para com erro se `.week` não for o scoring period atual da ESPN** (`status$latestScoringPeriod`): com a semana errada a ESPN devolve, sem avisar, o lineup histórico daquela semana. A exceção é a tag `"final"`, que fecha uma semana já passada.
+- `importEspn()` --- um snapshot combinado da liga + o pool de jogadores via API ESPN, upsert em `data/espn_db.rds` (15 tabelas, incl. times NFL + calendário de jogos via `proTeamSchedules_wl` + rank de defesa vs posição, `espn_pos_vs_opponent`). Guarda também as projeções semanais ESPN das 3 semanas seguintes, limitadas ao fim da temporada (`docs/horizon_projections.md`). **Para com erro se `.week` não for o scoring period atual da ESPN** (`status$latestScoringPeriod`): com a semana errada a ESPN devolve, sem avisar, o lineup histórico daquela semana. A exceção é a tag `"final"`, que fecha uma semana já passada.
 - `run_decision_pipeline(.season, .week, .tag)` --- passo 4 abaixo; devolve `res`.
 - `build_web_bundle(result = res, privacy = "public")` --- passo 7 abaixo.
 - `quarto publish gh-pages web` --- render + push para `origin/gh-pages`. Pule com `.publish <- FALSE` no bloco de parâmetros.
@@ -55,7 +55,7 @@ Para rodar um estágio isolado (re-simular sem re-scrape, republicar sem re-simu
 
 ### 3. `analytical_db` --- **não mexer no ciclo normal**
 
-`data/analytical_db.rds` (histórico de projeções e resíduos ≤ 2025) é entrada da decision engine mas **não** é reconstruído toda semana. Só precisa ser refeito quando você quiser incorporar resultados reais de uma temporada encerrada à calibração. O builder atual (`R/analysis/build_historic_datasets.R`) **está quebrado** --- ver `docs/PIPELINE_REVIEW.md` §1.1.
+`data/analytical_db.rds` (histórico de projeções e resíduos ≤ 2025) é entrada da decision engine mas **não** é reconstruído toda semana. Só precisa ser refeito quando você quiser incorporar resultados reais de uma temporada encerrada à calibração. O builder (`R/analysis/build_historic_datasets.R`) é um script interativo que lê `historic/2020-2025/` e `historic/2021/`. Os pontos reais vêm só desses arquivos NFL legados, então **incorporar 2026 exige antes uma fonte nova de pontos reais** --- ver `docs/PIPELINE_REVIEW.md` §1.1.
 
 ### 4. Simulação + recomendações (a decision engine)
 
@@ -76,13 +76,13 @@ O que roda, em ordem (as fases da spec):
 |-------------------------------|-----------------------------------------|
 | 1 seleção de snapshot | `ffa_snap`, `espn_snap` (`season/week/tag`, `max(timestamp)`) |
 | 2 consenso atual | uma linha por jogador: `projection`, `n_sources`, `coverage_class` |
-| 3 Monte Carlo do jogador | `projection + amostra(resíduos históricos)`, 10k draws → `player_forecasts` (média, sd, quantis p05--p95, prob \> N) |
+| 3 Monte Carlo do jogador | `projection + amostra(resíduos históricos centrados)`, 10k draws → `player_forecasts` (média, sd, quantis p05--p95, prob \> N) |
 | 4 estado da liga | `current_players` --- roster ESPN + forecast + injury, com bridge ESPN→FFA |
 | 5 simulação de matchup | `matchup_simulations` --- expected e win prob por confronto da semana |
 | 6-7 lineup ótimo + avaliação de roster | `lineup_evaluations` (atual vs ótimo), `lineup_recommendations` (só as trocas) |
-| 8 free agents | `free_agent_recommendations` --- top ADD/DROP por Δ expected e Δ P(win) |
-| 9 trades 1×1 | `trade_recommendations` --- top trocas mutuamente úteis, por time (`recommendation_rank` recomeça em 1 por `my_team_id`) |
-| 10 persistência | `data/decision_db.rds` (dm 7 tabelas, um `run_id` por execução, acumula) |
+| 8 free agents | `free_agent_recommendations` --- top ADD/DROP por Δ expected, em 3 escopos (W0, W1..W3, W0..W3); Δ P(win) só reportado |
+| 9 trades 1×1 | `trade_recommendations` --- top trocas mutuamente úteis, por time e escopo (`recommendation_rank`, `rank_future` e `rank_horizon` recomeçam em 1 por `my_team_id`) |
+| 10 persistência | `data/decision_db.rds` (dm 9 tabelas, um `run_id` por execução, acumula) |
 
 `run_decision_pipeline()` devolve (invisível) uma lista de 13 elementos --- ver "Onde olhar" abaixo.
 
@@ -101,23 +101,32 @@ Backtest da distribuição do modelo de jogador. Alvos: cobertura P10--P90 ≈ 0
 ### 6. (Opcional) Testes
 
 ``` r
-source("tests/decision/run_all.R")
+source("tests/run_all.R")
 ```
 
-13 arquivos `stopifnot`, esperado `PASS` em todos (verificado: 13/13 em 2026-09-08). **Nota:** `test_pipeline_integration.R` roda contra os `.rds` reais e tem contagens hardcoded para `2026 / w1 / "preview"` (`nrow(player_forecasts) == 561` etc.). Ele só passa enquanto existir um snapshot `preview` da w1 no `ffa_db`/`espn_db`; rodar o ciclo sob outra tag (ex. `preKickoff`) não afeta esse teste, mas mudar a composição de fontes do scrape muda as contagens e pode fazê-lo divergir.
+31 arquivos `stopifnot` (15 em `tests/decision/`, 16 em `tests/web/`). `run_all.R` para na primeira falha. Verificado em 2026-11-06: 30/31 `PASS`.
+
+**Falha conhecida:** `test_pipeline_integration.R` roda contra os `.rds` reais com contagens hardcoded para `2026 / w1 / "preview"` (99/149/313 por `coverage_class`). O snapshot ESPN dessa tag foi recapturado em 2026-10-20, já com pontos reais, e hoje a run dá 137/164/258, mais 2 linhas de previsão zero sem `coverage_class`. Esse é o 9º arquivo de `tests/decision/`, então a falha interrompe `run_all.R` antes dos 6 testes de decisão seguintes e de todos os testes web. Enquanto o teste não for corrigido, rode esses arquivos um a um com `source()`.
+
+Lógica JS do site (ambos `PASS` em 2026-11-06):
+
+``` bash
+node tests/web/compare.check.mjs
+node tests/web/trade-sim.check.mjs
+```
 
 ### 7. Web bundle + publicação do cockpit
 
 Já roda dentro do passo 2 (`build_web_bundle(result = res, privacy = "public")` + `quarto publish gh-pages web`). Esta seção é para republicar isolado.
 
-A camada web (`web/`) é um site Quarto estático. Ela **não** roda análise --- só lê os `dm` de `data/*.rds` do `run_id` mais recente da decision engine e escreve Parquet + `manifest.json` em `web/data/`. Rodar depois do passo 4.
+A camada web (`web/`) é um site Quarto estático: as páginas são JavaScript e consultam o Parquet no navegador com DuckDB-Wasm. O bundle **não** re-simula --- lê os `dm` de `data/*.rds` e escreve Parquet + `manifest.json` em `web/data/`. Rodar depois do passo 4.
 
 ``` bash
 # da raiz do projeto, com data/*.rds atualizados
 Rscript -e 'source("R/web/build_web_bundle.R"); build_web_bundle(privacy = "public")'
 ```
 
-- `build_web_bundle()` resolve o run mais recente em `data/decision_db.rds` (ou passe `run_id = "..."`), apaga e recria `web/data/`, escreve 18 datasets `.parquet` (subpastas `dimensions/`, `current/`, `projections/`, `history/`) + `web/data/manifest.json`, e roda `validate_web_bundle()` como gate --- `stop()` em qualquer violação do contrato (`docs/app_web_data_contract.md`).
+- `build_web_bundle()` resolve o run mais recente da última semana em `data/decision_db.rds` (ou passe `run_id = "..."`), apaga e recria `web/data/`, escreve 25 datasets `.parquet` (`runs.parquet` + subpastas `dimensions/`, `current/`, `projections/`, `history/`, `draft/`; os marts por run empilham o run mais novo de cada semana, para o seletor de semana do site) + `web/data/manifest.json`, e roda `validate_web_bundle()` como gate --- `stop()` em qualquer violação do contrato (`docs/app_web_data_contract.md`).
 - `privacy = "public"` remove `owner_name` / ids de owner. Use para qualquer host world-readable (GitHub Pages inclusive). `privacy = "private"` (default) só para deploy que não é público.
 - Lê `data/decision_db.rds`, `data/espn_db.rds`, `data/ffa_db.rds`, `data/analytical_db.rds`. `web/data/` é gitignored; nenhum `.rds` nem cookie sai da máquina.
 
@@ -140,13 +149,17 @@ A `.tag` marca *quando* na semana os dados foram capturados. É parte da chave p
 | tag | significado |
 |---------------------|---------------------------------------------------|
 | `preview` | projeções do começo da semana |
+| `preWaivers` / `posWaivers` | antes / depois do processamento de waivers --- `preWaivers` é o mesmo marco de `preview` e é o usado no ciclo atual |
 | `preKickoff` | snapshot logo antes do primeiro jogo (ad-hoc; usado a partir de 2026) |
+| `preLondonGame` | antes de jogo internacional, quando ele é o primeiro da semana |
 | `preTNF` / `posTNF` | antes / depois do jogo de quinta (Thursday Night Football) --- com `posTNF` alguns jogadores já entram com pontos reais (spec §11.3) |
+| `preSunday` / `preSundayGames` | antes dos jogos de domingo |
+| `preSNF` | antes do jogo de domingo à noite |
 | `preMNF` | antes do jogo de segunda |
-| `final` | depois de todos os jogos; único tag que puxa recaps de matchup (só no pipeline NFL, hoje morto) |
+| `final` | depois de todos os jogos. Única tag aceita com `.week` diferente da semana corrente da ESPN, e o snapshot ESPN `final` marca a semana como fechada para os marts de histórico do site (`best_lineups`, `matchup_backtest`) |
 | `season` | snapshot de nível temporada, gravado em `week = 0` |
 
-**Tags não são validadas em lugar nenhum.** Um typo (`"preveiw"`) roda a ingestão inteira e cria uma partição órfã; a falha só aparece depois, quando `run_decision_pipeline` não acha o snapshot. **Use exatamente o mesmo string na ingestão (passo 2) e no `run_decision_pipeline` (passo 4).**
+**Tags não são validadas em lugar nenhum.** Um typo (`"preveiw"`) roda a ingestão inteira e cria uma partição órfã; a falha só aparece depois, quando `run_decision_pipeline` não acha o snapshot. Já aconteceu: `decision_db` tem um run com `preWaiver`, sem o "s". **Use exatamente o mesmo string na ingestão (passo 2) e no `run_decision_pipeline` (passo 4).**
 
 ------------------------------------------------------------------------
 
@@ -174,7 +187,7 @@ Inspeção típica: `dplyr::glimpse(res$player_forecasts)`, `res$matchup_simulat
 
 ``` r
 d <- readRDS("data/decision_db.rds")
-names(d)                          # as 7 tabelas
+names(d)                          # as 9 tabelas
 d$simulation_runs                 # uma linha por run já executado (acumula)
 dm::dm_examine_constraints(d)     # deve vir sem violações
 ```
@@ -184,8 +197,8 @@ Para comparar runs (ex. `preview` vs `preKickoff` da mesma semana), filtre cada 
 ### As ações da semana (o que fazer com o time)
 
 1.  `res$lineup_recommendations |> filter(team_id == 4)` --- trocas de escalação. Se vier vazio, o lineup atual já é o ótimo.
-2.  `res$free_agent_recommendations` --- ordenado por `recommendation_rank`; olhe `delta_expected` e `delta_win_probability`.
-3.  `res$trade_recommendations |> filter(my_team_id == 4)` --- trocas 1×1 com `my_delta_expected > 0` (a tabela cobre todos os times); priorize as com `their_delta_expected > 0` também (plausíveis para o outro manager). Colunas: `give_player_id` / `receive_player_id` (ids ESPN), `my_delta_expected`, `their_delta_expected`, `fairness` (= `-abs(my_delta − their_delta)`), `trade_score`, `partner_is_my_opponent`.
+2.  `res$free_agent_recommendations` --- ordenado por `recommendation_rank`; olhe `delta_expected` e `delta_win_probability`. Para semanas futuras, use `rank_future` / `rank_horizon`.
+3.  `res$trade_recommendations |> filter(my_team_id == 4)` --- trocas 1×1 com `my_delta_expected > 0` (a tabela cobre todos os times); priorize as com `their_delta_expected > 0` também (plausíveis para o outro manager). Colunas: `give_player_id` / `receive_player_id` (ids ESPN), `my_delta_expected`, `their_delta_expected`, `fairness` (= `-abs(my_delta − their_delta)`), `trade_score`, `partner_is_my_opponent`. Escopos futuros: `my_delta_future`, `my_delta_horizon`, `rank_future`, `rank_horizon`.
 
 ### Diagramas
 
@@ -205,6 +218,7 @@ Warnings esperados: `92 consensus players without nfl_id mapping` (informativo),
 
 ## O que NÃO faz parte do ciclo
 
-- **`R/pipeline/data_pipeline_nfl.R`** e todo `R/api/nfl_*.R` --- pipeline NFL legado, morto (sem `authToken` no config). Não rodar.
-- **`R/snippets/simulation_machine.R`**, **`R/analysis/team_optimizer.R`**, **`R/analysis/projection_ml.R`** --- geração de simulação "gen-1", superada pela decision engine e quebrada hoje. A "simulação" do ciclo é a fase 3 de `run_decision_pipeline`.
-- **`R/transformation/`**, **`R/snippets/*` (demais)** --- análises ad-hoc e transformações que só alimentavam o gen-1. Cada uma lê os `.rds` e imprime/plota isoladamente.
+- **`archive/R/pipeline/data_pipeline_nfl.R`** e todo `archive/R/api/nfl_*.R` --- pipeline NFL legado, morto (sem `authToken` no config). Não rodar.
+- **`archive/R/snippets/simulation_machine.R`**, **`archive/R/analysis/team_optimizer.R`**, **`archive/R/analysis/projection_ml.R`** --- geração de simulação "gen-1", superada pela decision engine e quebrada hoje. A "simulação" do ciclo é a fase 3 de `run_decision_pipeline`.
+- **`archive/R/transformation/`**, **`archive/R/snippets/*` (demais)** --- análises ad-hoc e transformações que só alimentavam o gen-1. Cada uma lê os `.rds` e imprime/plota isoladamente.
+- **`R/snippets/*`** --- análises ad-hoc que continuam em `R/`, avulsas, fora do pipeline.

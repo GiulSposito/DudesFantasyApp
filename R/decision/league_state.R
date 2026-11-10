@@ -46,7 +46,11 @@ bridge_espn_to_ffa <- function(rosters, analytical_db, ffa_db,
     mutate(.rid = row_number(), ffa_id = NA_integer_, bridge_method = NA_character_)
 
   take <- function(out, hits, method) {
-    # hits: tibble(.rid, .cand) - fill ffa_id/bridge_method only where still NA
+    # hits: tibble(.rid, .cand) - fill ffa_id/bridge_method only where still NA.
+    # A row with >1 distinct candidate is ambiguous (e.g. the ffanalytics
+    # crosswalk gives espn_id 4036211 to both DJ Turner WR and DJ Turner II CB):
+    # skip it so the next strategy can try, instead of duplicating the row.
+    hits <- hits |> distinct() |> add_count(.rid) |> filter(n == 1L) |> select(-n)
     out |>
       left_join(hits, by = ".rid") |>
       mutate(
@@ -67,7 +71,7 @@ bridge_espn_to_ffa <- function(rosters, analytical_db, ffa_db,
   # 1 - direct espn_id
   s1 <- analytical_db$player_ids |> distinct(ffa_id, espn_id) |> filter(!is.na(espn_id))
   h1 <- out |> filter(is.na(ffa_id)) |> select(.rid, player_id) |>
-    inner_join(s1, by = c("player_id" = "espn_id")) |>
+    inner_join(s1, by = c("player_id" = "espn_id"), relationship = "many-to-many") |>
     transmute(.rid, .cand = as.integer(ffa_id))
   out <- take(out, h1, "espn_id")
 
@@ -87,8 +91,7 @@ bridge_espn_to_ffa <- function(rosters, analytical_db, ffa_db,
               p = .norm_pos(pos))
   h3 <- out |> filter(is.na(ffa_id)) |>
     transmute(.rid, nm = .norm_name(player_name), p = .norm_pos(position)) |>
-    inner_join(ffp, by = c("nm", "p")) |>
-    add_count(.rid) |> filter(n == 1L) |>
+    inner_join(ffp, by = c("nm", "p"), relationship = "many-to-many") |>
     transmute(.rid, .cand = f)
   out <- take(out, h3, "name_pos")
 

@@ -30,6 +30,12 @@ os 7 matchups. Nenhum bug novo apareceu na execução além dos listados abaixo.
 ## 1. Bloqueantes (impedem um estágio de rodar hoje)
 
 ### 1.1 `build_historic_datasets.R` — builder do `analytical_db` está quebrado
+**Atualização (2026-11-06):** o script passou a ler `historic/2020-2025/` e
+`historic/2021/`, e esses arquivos existem; não foi reexecutado nesta verificação.
+Continua sem pontos reais de 2026, que só existem na ESPN, e continua desenhando
+`ffa_db` em `export/analytical_db.png`. Os números de linha abaixo são da revisão
+original.
+
 `R/analysis/build_historic_datasets.R:42-43,83` lê `./data/nfl_stats_db.rds` e
 `./data/nfl_players_db.rds`. Nenhum dos dois existe em `data/` (só `analytical_db`,
 `decision_db`, `espn_db`, `ffa_db`). Esses arquivos vêm do pipeline NFL legado
