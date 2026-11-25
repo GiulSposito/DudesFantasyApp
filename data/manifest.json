@@ -1,16 +1,16 @@
 {
   "schema_version": "1.0.0",
-  "generated_at": "2026-11-25T04:35:57Z",
+  "generated_at": "2026-11-25T20:36:07Z",
   "current": {
-    "run_id": "2026-W12-preWaivers-20261125T012724",
+    "run_id": "2026-W12-posWaivers-20261125T172953",
     "season": 2026,
     "week": 12,
-    "tag": "preWaivers",
+    "tag": "posWaivers",
     "model_version": "player-mc-v2",
     "n_sim": 10000,
-    "created_at": "2026-11-25T04:35:35Z",
-    "ffa_timestamp": "2026-11-25T04:24:43Z",
-    "espn_timestamp": "2026-11-25T04:23:44Z"
+    "created_at": "2026-11-25T20:35:46Z",
+    "ffa_timestamp": "2026-11-25T20:27:40Z",
+    "espn_timestamp": "2026-11-25T20:25:19Z"
   },
   "datasets": {
     "runs": "runs.parquet",
